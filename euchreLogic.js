@@ -25,6 +25,80 @@ function initializeEuchreGame(roomId) {
   return room.euchre;
 }
 
+// euchreLogic.js - add this function to handle CPU moves
+function handleCPUTurns(io, roomId) {
+  const room = roomStates[roomId];
+  if (!room || !room.gameActive || room.gameType !== 'euchre') return;
+  
+  const euchreState = room.euchre;
+  if (!euchreState) return;
+  
+  // Check if it's a CPU's turn
+  const currentPlayerId = euchreState.currentPlayer;
+  if (!currentPlayerId || !currentPlayerId.startsWith('cpu_')) return;
+  
+  // Delay the CPU move to make it feel more natural
+  setTimeout(() => {
+    // Handle different game phases
+    if (euchreState.gamePhase === 'bidding1' || euchreState.gamePhase === 'bidding2') {
+      cpuBid(io, roomId, currentPlayerId);
+    } else if (euchreState.gamePhase === 'playing') {
+      cpuPlayCard(io, roomId, currentPlayerId);
+    }
+  }, 1500);
+}
+
+// CPU bidding logic
+function cpuBid(io, roomId, cpuId) {
+  const room = roomStates[roomId];
+  const euchreState = room.euchre;
+  
+  // Simple bidding logic
+  if (euchreState.gamePhase === 'bidding1') {
+    // 30% chance to bid in first round
+    if (Math.random() < 0.3) {
+      // Order up
+      handleEuchreBid(io, { id: cpuId, roomId }, { action: 'orderUp', suit: euchreState.turnUpCard.suit });
+    } else {
+      // Pass
+      handleEuchreBid(io, { id: cpuId, roomId }, { action: 'pass' });
+    }
+  } else if (euchreState.gamePhase === 'bidding2') {
+    // 40% chance to bid in second round
+    if (Math.random() < 0.4) {
+      // Select a random suit that isn't the turn-up suit
+      const availableSuits = ['hearts', 'diamonds', 'clubs', 'spades'].filter(s => s !== euchreState.turnUpCard.suit);
+      const selectedSuit = availableSuits[Math.floor(Math.random() * availableSuits.length)];
+      
+      handleEuchreBid(io, { id: cpuId, roomId }, { action: 'callSuit', suit: selectedSuit });
+    } else {
+      // Pass
+      handleEuchreBid(io, { id: cpuId, roomId }, { action: 'pass' });
+    }
+  }
+}
+
+// CPU card playing logic
+function cpuPlayCard(io, roomId, cpuId) {
+  const room = roomStates[roomId];
+  const euchreState = room.euchre;
+  
+  // Play a random valid card
+  const hand = euchreState.hands[cpuId];
+  if (!hand || hand.length === 0) return;
+  
+  // For simplicity, just play the first card (you could implement more complex logic later)
+  const cardIndex = 0;
+  
+  handleEuchrePlayCard(io, { id: cpuId, roomId }, cardIndex);
+}
+
+// Add this to your handleEuchreBid and handleEuchrePlayCard functions
+// At the end, check if next player is CPU and trigger their move
+function checkForCPUTurn(io, roomId) {
+  handleCPUTurns(io, roomId);
+}
+
 function fillEmptySeatsWithCPUs(roomId) {
   const room = roomStates[roomId];
   if (!room) return;
@@ -175,6 +249,7 @@ function handleEuchreBid(io, socket, bid) {
     gameState: getFilteredGameState(euchreState, room),
     roomState: room 
   });
+  checkForCPUTurn(io, roomId);
 }
 
 function handleEuchrePlayCard(io, socket, cardIndex) {
@@ -193,6 +268,7 @@ function handleEuchrePlayCard(io, socket, cardIndex) {
     gameState: getFilteredGameState(euchreState, room),
     roomState: room 
   });
+  checkForCPUTurn(io, roomId);
 }
 
 module.exports = {
