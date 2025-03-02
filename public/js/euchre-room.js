@@ -53,7 +53,9 @@ document.addEventListener('DOMContentLoaded', function() {
     sitButtons.forEach((button, index) => {
       if (button) {
         button.addEventListener('click', function() {
-          socket.emit('sitAtTable', index + 1);
+          const seatNumber = index + 1;
+          console.log('Requesting to sit at seat:', seatNumber);
+          socket.emit('sitAtTable', seatNumber.toString());
         });
       }
     });
@@ -76,38 +78,48 @@ document.addEventListener('DOMContentLoaded', function() {
     // Connect euchre game UI actions
     dealBtn.addEventListener('click', function() {
       socket.emit('startGame');
+      logEvent('Starting game...');
     });
     
     newGameBtn.addEventListener('click', function() {
       socket.emit('startGame');
+      logEvent('Starting new game...');
     });
     
     orderUpBtn.addEventListener('click', function() {
-      socket.emit('euchreBid', { 
-        action: 'orderUp', 
-        suit: gameState.turnUpCard.suit 
-      });
+      if (gameState && gameState.turnUpCard) {
+        socket.emit('euchreBid', { 
+          action: 'orderUp', 
+          suit: gameState.turnUpCard.suit 
+        });
+        logEvent(`You ordered up ${gameState.turnUpCard.suit}`);
+      }
     });
     
     passBidBtn.addEventListener('click', function() {
       socket.emit('euchreBid', { action: 'pass' });
+      logEvent('You passed');
     });
     
     document.querySelectorAll('.suit-btn').forEach(button => {
       button.addEventListener('click', function() {
+        const suit = button.dataset.suit;
         socket.emit('euchreBid', { 
           action: 'callSuit', 
-          suit: button.dataset.suit 
+          suit: suit 
         });
+        logEvent(`You called ${suit} as trump`);
       });
     });
     
     passSuitBtn.addEventListener('click', function() {
       socket.emit('euchreBid', { action: 'pass' });
+      logEvent('You passed');
     });
     
     // Handle room state updates (from your existing system)
     socket.on('updateRoom', function(room) {
+      console.log('Room updated:', room);
       roomState = room;
       
       // Update player lists
@@ -117,19 +129,38 @@ document.addEventListener('DOMContentLoaded', function() {
       updateSeatControls(room);
       
       // Start the game if we have 4 players seated
-      if (room.seatedPlayers.length === 4 && !room.gameActive) {
+      if (room.seatedPlayers && room.seatedPlayers.length === 4 && !room.gameActive) {
         dealBtn.disabled = false;
       } else {
         dealBtn.disabled = true;
       }
+      
+      // Update the room ID in case it wasn't set by the join
+      socket.roomId = roomId;
+      
+      // Remember our player ID
+      myPlayerId = socket.id;
     });
     
     // Handle Euchre-specific game state updates
     socket.on('euchreGameState', function(data) {
+      console.log('Received game state:', data);
       gameState = data.gameState;
       roomState = data.roomState;
       
+      // Ensure we have player ID
       myPlayerId = socket.id;
+      
+      // Display any game log messages
+      if (gameState.gameLog && gameState.gameLog.length > 0) {
+        // Only display new messages
+        const lastMessage = gameLog.lastElementChild ? 
+                           gameLog.lastElementChild.textContent : '';
+        
+        if (gameState.gameLog[gameState.gameLog.length - 1] !== lastMessage) {
+          logEvent(gameState.gameLog[gameState.gameLog.length - 1]);
+        }
+      }
       
       // Render the game state
       renderGameState();
@@ -155,6 +186,13 @@ document.addEventListener('DOMContentLoaded', function() {
       const playerName = room.playerNames[playerId];
       const playerItem = document.createElement('li');
       playerItem.textContent = playerName;
+      
+      // Highlight current player
+      if (playerId === socket.id) {
+        playerItem.style.fontWeight = 'bold';
+        playerItem.textContent += ' (You)';
+      }
+      
       playerList.appendChild(playerItem);
     }
     
@@ -163,7 +201,23 @@ document.addEventListener('DOMContentLoaded', function() {
     for (const [seatNumber, playerId] of Object.entries(room.playerSeats)) {
       const playerName = room.playerNames[playerId];
       const playerItem = document.createElement('li');
-      playerItem.textContent = `${seatNumber}. ${playerName}`;
+      playerItem.textContent = `Seat ${seatNumber}: ${playerName}`;
+      
+      // Highlight current player
+      if (playerId === socket.id) {
+        playerItem.style.fontWeight = 'bold';
+        playerItem.textContent += ' (You)';
+      }
+      
+      // Show which team they're on
+      if (room.teams) {
+        if (room.teams[1].includes(playerId)) {
+          playerItem.textContent += ' - Team 1';
+        } else if (room.teams[2].includes(playerId)) {
+          playerItem.textContent += ' - Team 2';
+        }
+      }
+      
       seatedPlayerList.appendChild(playerItem);
     }
   }
@@ -189,11 +243,23 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       if (seatLabels[index]) {
         seatLabels[index].textContent = playerName;
+        
+        // Highlight current player
+        if (playerId === socket.id) {
+          seatLabels[index].textContent += ' (You)';
+          seatLabels[index].style.fontWeight = 'bold';
+        }
+        
+        // Add CPU indicator
+        if (playerId.startsWith('cpu_')) {
+          seatLabels[index].textContent += ' (CPU)';
+          seatLabels[index].style.color = '#999';
+        }
       }
     }
     
     // Update stand button
-    if (room.seatedPlayers.includes(socket.id)) {
+    if (room.seatedPlayers && room.seatedPlayers.includes(socket.id)) {
       standButton.disabled = false;
     } else {
       standButton.disabled = true;
@@ -216,9 +282,8 @@ document.addEventListener('DOMContentLoaded', function() {
     updateGameControls();
   }
   
-// Functions to render the game state
-
-function renderHands() {
+  // Functions to render the game state
+  function renderHands() {
     // Clear all hand containers
     document.querySelectorAll('.card-container').forEach(container => {
       container.innerHTML = '';
@@ -229,6 +294,8 @@ function renderHands() {
     
     // Map seat positions to player IDs
     const seatToPlayerId = {};
+    const positions = ['north', 'west', 'south', 'east']; // In seat order 1,2,3,4
+    
     for (const [seatNumber, playerId] of Object.entries(roomState.playerSeats)) {
       // Convert seat number to position
       let position;
@@ -241,20 +308,20 @@ function renderHands() {
       seatToPlayerId[position] = playerId;
     }
     
-    // Get positions
-    const positions = ['north', 'west', 'south', 'east'];
-    
     // Render each position's hand
     positions.forEach(position => {
       const playerId = seatToPlayerId[position];
       if (!playerId || !gameState.hands[playerId]) return;
       
       const container = document.getElementById(`${position}-hand`);
+      if (!container) return;
+      
       const cards = gameState.hands[playerId];
       
       // Determine if we should show cards (only for current player)
       const shouldShowCards = (playerId === myPlayerId);
       
+      // For each card in the hand
       cards.forEach((card, index) => {
         const cardEl = document.createElement('div');
         
@@ -285,7 +352,9 @@ function renderHands() {
           if (gameState.gamePhase === 'playing' && gameState.currentPlayer === myPlayerId) {
             cardEl.addEventListener('click', () => {
               socket.emit('euchrePlayCard', index);
+              console.log(`Playing card at index ${index}:`, card);
             });
+            cardEl.classList.add('playable');
           }
         } else {
           // Show card back
@@ -294,6 +363,13 @@ function renderHands() {
         
         container.appendChild(cardEl);
       });
+      
+      // Add player indicator if it's their turn
+      if (gameState.currentPlayer === playerId) {
+        const turnIndicator = document.createElement('div');
+        turnIndicator.className = 'turn-indicator';
+        container.parentElement.appendChild(turnIndicator);
+      }
     });
   }
   
@@ -304,38 +380,42 @@ function renderHands() {
     if (!gameState) return;
     
     // If in bidding phase, show turn-up card
-    if (gameState.gamePhase === 'bidding1' || gameState.gamePhase === 'bidding2') {
-      if (gameState.turnUpCard) {
-        const cardEl = document.createElement('div');
-        cardEl.className = 'card';
-        
-        // Add color class for red suits
-        const isRed = gameState.turnUpCard.suit === 'hearts' || gameState.turnUpCard.suit === 'diamonds';
-        if (isRed) {
-          cardEl.classList.add('red');
-        }
-        
-        // Add card value in corner
-        const valueEl = document.createElement('div');
-        valueEl.className = 'card-value';
-        valueEl.textContent = `${gameState.turnUpCard.rank}`;
-        cardEl.appendChild(valueEl);
-        
-        // Add large suit symbol in center
-        const symbolEl = document.createElement('div');
-        symbolEl.className = 'card-symbol';
-        const suitSymbols = {'hearts': '♥', 'diamonds': '♦', 'clubs': '♣', 'spades': '♠'};
-        symbolEl.textContent = suitSymbols[gameState.turnUpCard.suit];
-        cardEl.appendChild(symbolEl);
-        
-        // Add slight rotation for visual interest
-        cardEl.style.transform = 'rotate(5deg)';
-        
-        trickArea.appendChild(cardEl);
+    if ((gameState.gamePhase === 'bidding1' || gameState.gamePhase === 'bidding2') && gameState.turnUpCard) {
+      const cardEl = document.createElement('div');
+      cardEl.className = 'card turn-up-card';
+      
+      // Add color class for red suits
+      const isRed = gameState.turnUpCard.suit === 'hearts' || gameState.turnUpCard.suit === 'diamonds';
+      if (isRed) {
+        cardEl.classList.add('red');
       }
+      
+      // Add card value in corner
+      const valueEl = document.createElement('div');
+      valueEl.className = 'card-value';
+      valueEl.textContent = `${gameState.turnUpCard.rank}`;
+      cardEl.appendChild(valueEl);
+      
+      // Add large suit symbol in center
+      const symbolEl = document.createElement('div');
+      symbolEl.className = 'card-symbol';
+      const suitSymbols = {'hearts': '♥', 'diamonds': '♦', 'clubs': '♣', 'spades': '♠'};
+      symbolEl.textContent = suitSymbols[gameState.turnUpCard.suit];
+      cardEl.appendChild(symbolEl);
+      
+      // Add slight rotation for visual interest
+      cardEl.style.transform = 'rotate(5deg)';
+      
+      // Add label
+      const turnUpLabel = document.createElement('div');
+      turnUpLabel.className = 'turn-up-label';
+      turnUpLabel.textContent = 'Turn Up Card';
+      trickArea.appendChild(turnUpLabel);
+      
+      trickArea.appendChild(cardEl);
     } 
     // If in playing phase, show current trick
-    else if (gameState.gamePhase === 'playing' && gameState.currentTrick.length > 0) {
+    else if (gameState.gamePhase === 'playing' && gameState.currentTrick && gameState.currentTrick.length > 0) {
       // Map player IDs to positions
       const playerIdToPosition = {};
       for (const [seatNumber, playerId] of Object.entries(roomState.playerSeats)) {
@@ -355,7 +435,7 @@ function renderHands() {
         const cardEl = document.createElement('div');
         const position = playerIdToPosition[play.player];
         
-        cardEl.className = `trick-card trick-${position}`;
+        cardEl.className = `card trick-card trick-${position}`;
         
         // Add color class for red suits
         const isRed = play.card.suit === 'hearts' || play.card.suit === 'diamonds';
@@ -376,7 +456,7 @@ function renderHands() {
         symbolEl.textContent = suitSymbols[play.card.suit];
         cardEl.appendChild(symbolEl);
         
-        // Highlight winner
+        // Highlight winner if trick is complete
         if (gameState.trickWinner === play.player) {
           cardEl.classList.add('trick-winner');
           
@@ -406,6 +486,7 @@ function renderHands() {
     // Clear all control displays
     biddingControls.style.display = 'none';
     suitSelection.style.display = 'none';
+    newGameBtn.style.display = 'none';
     
     // Only proceed if we have game state
     if (!gameState) return;
@@ -414,7 +495,15 @@ function renderHands() {
     if (gameState.trumpSuit) {
       trumpIndicator.style.display = 'block';
       const suitSymbols = {'hearts': '♥', 'diamonds': '♦', 'clubs': '♣', 'spades': '♠'};
-      trumpSuitText.textContent = `${gameState.trumpSuit} ${suitSymbols[gameState.trumpSuit]}`;
+      const suitSymbol = suitSymbols[gameState.trumpSuit] || '';
+      trumpSuitText.textContent = `${gameState.trumpSuit.charAt(0).toUpperCase() + gameState.trumpSuit.slice(1)} ${suitSymbol}`;
+      
+      // Add color class for red suits
+      if (gameState.trumpSuit === 'hearts' || gameState.trumpSuit === 'diamonds') {
+        trumpSuitText.className = 'red';
+      } else {
+        trumpSuitText.className = '';
+      }
     } else {
       trumpIndicator.style.display = 'none';
     }
@@ -422,8 +511,12 @@ function renderHands() {
     // Update game info and controls based on game phase
     if (gameState.gamePhase === 'idle') {
       infoText.textContent = 'Welcome to Euchre! Click Deal to start.';
+      dealBtn.style.display = 'inline-block';
+      dealBtn.disabled = false;
     } 
     else if (gameState.gamePhase === 'bidding1') {
+      dealBtn.style.display = 'none';
+      
       if (gameState.currentPlayer === myPlayerId) {
         infoText.textContent = `Do you want to order up ${gameState.turnUpCard.suit}?`;
         biddingControls.style.display = 'block';
@@ -434,9 +527,20 @@ function renderHands() {
       }
     } 
     else if (gameState.gamePhase === 'bidding2') {
+      dealBtn.style.display = 'none';
+      
       if (gameState.currentPlayer === myPlayerId) {
         infoText.textContent = `Select a trump suit (different from ${gameState.turnUpCard.suit})`;
         suitSelection.style.display = 'block';
+        
+        // Disable the suit that was turned down
+        document.querySelectorAll('.suit-btn').forEach(button => {
+          if (button.dataset.suit === gameState.turnUpCard.suit) {
+            button.disabled = true;
+          } else {
+            button.disabled = false;
+          }
+        });
       } else {
         // Find the player name using the player ID
         const currentPlayerName = roomState.playerNames[gameState.currentPlayer] || 'Unknown';
@@ -444,6 +548,8 @@ function renderHands() {
       }
     } 
     else if (gameState.gamePhase === 'playing') {
+      dealBtn.style.display = 'none';
+      
       if (gameState.currentPlayer === myPlayerId) {
         infoText.textContent = 'Your turn. Play a card.';
       } else {
@@ -453,15 +559,16 @@ function renderHands() {
       }
     } 
     else if (gameState.gamePhase === 'gameover') {
-      const winner = gameState.teamScores[0] > gameState.teamScores[1] ? 'Team 1' : 'Team 2';
-      infoText.textContent = `Game over! ${winner} wins!`;
-      newGameBtn.disabled = false;
+      const winningTeam = gameState.teamScores[0] > gameState.teamScores[1] ? 1 : 2;
+      infoText.textContent = `Game over! Team ${winningTeam} wins!`;
+      newGameBtn.style.display = 'inline-block';
+      dealBtn.style.display = 'none';
     }
     
-    // Add turn indicator for current player
-    // Remove any existing indicators first
+    // Remove any existing turn indicators
     document.querySelectorAll('.turn-indicator').forEach(el => el.remove());
     
+    // Add turn indicator for current player
     if (gameState.currentPlayer) {
       // Find the seat number for the current player
       let currentSeat = null;
@@ -485,27 +592,30 @@ function renderHands() {
         // Create and position the indicator
         const indicator = document.createElement('div');
         indicator.className = 'turn-indicator';
+        indicator.innerHTML = '🔄';
         
         const playerArea = document.querySelector(`.player-${position}`);
-        playerArea.appendChild(indicator);
-        
-        // Position based on the player's area
-        if (position === 'south') {
-          indicator.style.bottom = '5px';
-          indicator.style.left = '50%';
-          indicator.style.transform = 'translateX(-50%)';
-        } else if (position === 'north') {
-          indicator.style.top = '5px';
-          indicator.style.left = '50%';
-          indicator.style.transform = 'translateX(-50%)';
-        } else if (position === 'west') {
-          indicator.style.left = '5px';
-          indicator.style.top = '50%';
-          indicator.style.transform = 'translateY(-50%)';
-        } else if (position === 'east') {
-          indicator.style.right = '5px';
-          indicator.style.top = '50%';
-          indicator.style.transform = 'translateY(-50%)';
+        if (playerArea) {
+          playerArea.appendChild(indicator);
+          
+          // Position based on the player's area
+          if (position === 'south') {
+            indicator.style.bottom = '5px';
+            indicator.style.left = '50%';
+            indicator.style.transform = 'translateX(-50%)';
+          } else if (position === 'north') {
+            indicator.style.top = '5px';
+            indicator.style.left = '50%';
+            indicator.style.transform = 'translateX(-50%)';
+          } else if (position === 'west') {
+            indicator.style.left = '5px';
+            indicator.style.top = '50%';
+            indicator.style.transform = 'translateY(-50%)';
+          } else if (position === 'east') {
+            indicator.style.right = '5px';
+            indicator.style.top = '50%';
+            indicator.style.transform = 'translateY(-50%)';
+          }
         }
       }
     }
@@ -513,13 +623,27 @@ function renderHands() {
   
   function renderScores() {
     // Update team scores
-    teamScore1.textContent = gameState.teamScores[0];
-    teamScore2.textContent = gameState.teamScores[1];
+    if (gameState.teamScores) {
+      teamScore1.textContent = gameState.teamScores[0] || 0;
+      teamScore2.textContent = gameState.teamScores[1] || 0;
+    }
     
-    // Update trick counts
-    document.querySelectorAll('.tricks-count').forEach((el, index) => {
-      const playerId = roomState.seatedPlayers[index];
-      el.textContent = gameState.tricksWon[playerId] || 0;
+    // Update trick counts for each player
+    const positions = ['north', 'west', 'south', 'east']; // In seat order 1,2,3,4
+    const seatNumbers = [1, 2, 3, 4];
+    
+    seatNumbers.forEach((seatNum, index) => {
+      const position = positions[index];
+      const tricksCountEl = document.querySelector(`.player-${position} .tricks-count`);
+      
+      if (tricksCountEl) {
+        const playerId = roomState.playerSeats[seatNum];
+        if (playerId && gameState.tricksWon) {
+          tricksCountEl.textContent = gameState.tricksWon[playerId] || 0;
+        } else {
+          tricksCountEl.textContent = '0';
+        }
+      }
     });
   }
 

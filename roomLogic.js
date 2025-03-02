@@ -33,10 +33,13 @@ function createRoom({ gameType, maxPlayers, publiclyListed, password }) {
 }
 
 function getActiveRooms() {
+  // Clear the active rooms object first to avoid stale data
+  Object.keys(activeRooms).forEach(key => delete activeRooms[key]);
+  
   for (const roomId in roomStates) {
     const room = roomStates[roomId];
     const playersCount = room.players.length;
-    const seatedCount = Object.keys(room.playerSeats).length;
+    const seatedCount = room.seatedPlayers.length;
     activeRooms[roomId] = {
       roomStatus: `Players: ${playersCount}/${room.maxPlayers}`,
       tableStatus: `Seats: ${seatedCount}/${MAX_SEATS_PER_ROOM}`,
