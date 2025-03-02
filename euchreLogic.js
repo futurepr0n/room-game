@@ -1,5 +1,5 @@
 // euchreLogic.js
-const { roomStates } = require('./roomLogic');
+const { roomStates, updateActiveRooms } = require('./roomLogic');
 
 function initializeEuchreGame(roomId) {
   const room = roomStates[roomId];
@@ -34,14 +34,19 @@ function fillEmptySeatsWithCPUs(roomId) {
   const room = roomStates[roomId];
   if (!room) return;
   
+  console.log('Filling empty seats with CPUs for room:', roomId);
+  
   // Get occupied seat numbers
   const occupiedSeats = Object.keys(room.playerSeats).map(Number);
+  console.log('Occupied seats:', occupiedSeats);
   
   // Fill empty seats with CPU players
   for (let seatNum = 1; seatNum <= 4; seatNum++) {
     if (!occupiedSeats.includes(seatNum)) {
       const cpuId = `cpu_${roomId}_${seatNum}`;
       const cpuName = `CPU ${seatNum}`;
+      
+      console.log(`Adding CPU to seat ${seatNum}: ${cpuId}`);
       
       // Add CPU to the room
       if (!room.players.includes(cpuId)) {
@@ -73,11 +78,19 @@ function fillEmptySeatsWithCPUs(roomId) {
       }
     }
   }
+  
+  // Log final state
+  console.log('Room after filling with CPUs:');
+  console.log('- Seated players:', room.seatedPlayers);
+  console.log('- Player seats:', room.playerSeats);
+  console.log('- Teams:', room.teams);
 }
 
 function startEuchreGame(io, roomId) {
   const room = roomStates[roomId];
   if (!room) return;
+  
+  console.log('Starting Euchre game for room:', roomId);
   
   // Ensure we have players in all seats
   fillEmptySeatsWithCPUs(roomId);
@@ -99,6 +112,10 @@ function startEuchreGame(io, roomId) {
   
   // Log the game start
   addToGameLog(euchreState, "Game started. Bidding begins.");
+  
+  // Update active rooms to reflect game is active
+  updateActiveRooms();
+  io.emit('updateActiveRooms');
   
   // Emit the initial game state to all players
   io.to(roomId).emit('euchreGameState', { 
@@ -153,6 +170,8 @@ function dealCards(euchreState, room) {
   for (let pattern = 0; pattern < 2; pattern++) {
     for (let i = 0; i < 4; i++) {
       const playerIndex = (euchreState.dealerPosition + 1 + i) % 4;
+      if (playerIndex >= room.seatedPlayers.length) continue;
+      
       const playerId = room.seatedPlayers[playerIndex];
       if (!playerId) continue; // Skip if no player in this seat
       
@@ -384,7 +403,7 @@ function handleEuchrePlayCard(io, socket, cardIndex) {
     addToGameLog(euchreState, `${winnerName} won the trick`);
     
     // Check if the hand is complete (5 tricks played)
-    if (euchreState.hands[playerId].length === 0) {
+    if (Object.values(euchreState.hands).every(hand => hand.length === 0)) {
       // Hand is complete - calculate scores
       const makerTeam = determineMakerTeam(euchreState, room);
       let pointsScored = 0;
@@ -513,24 +532,26 @@ function determineTrickWinner(euchreState) {
     const cardValue = getCardValue(card);
     
     // First card or higher value card
-    if (winnerId === null || cardValue > highestValue) {
+    if (winnerId === null) {
       highestValue = cardValue;
       winnerId = play.player;
       winningCard = card;
     }
-    // Following cards must be of lead suit or trump to win
-    else if (card.suit === leadSuit || card.suit === trumpSuit) {
-      // Special case for left bower (appears as other suit but counts as trump)
+    // Following cards must follow suit to win
+    else {
       const isLeftBower = card.rank === 'J' && 
                         ((trumpSuit === 'hearts' && card.suit === 'diamonds') ||
                          (trumpSuit === 'diamonds' && card.suit === 'hearts') ||
                          (trumpSuit === 'clubs' && card.suit === 'spades') ||
                          (trumpSuit === 'spades' && card.suit === 'clubs'));
       
-      if (isLeftBower || cardValue > highestValue) {
-        highestValue = cardValue;
-        winnerId = play.player;
-        winningCard = card;
+      // If it's the lead suit, it might win
+      if (card.suit === leadSuit || card.suit === trumpSuit || isLeftBower) {
+        if (cardValue > highestValue) {
+          highestValue = cardValue;
+          winnerId = play.player;
+          winningCard = card;
+        }
       }
     }
   }
@@ -559,6 +580,8 @@ function handleCPUTurns(io, roomId) {
   // Check if it's a CPU's turn
   const currentPlayerId = euchreState.currentPlayer;
   if (!currentPlayerId || !currentPlayerId.startsWith('cpu_')) return;
+  
+  console.log(`CPU turn for player: ${currentPlayerId}`);
   
   // Delay the CPU move to make it feel more natural
   setTimeout(() => {

@@ -1,11 +1,13 @@
 const { handleJoinRoom, handleSitAtTable, handleStandFromTable, handleDisconnect, getActiveRooms, createRoom, roomStates } = require('./roomLogic');
 const { startGame, rollDice } = require('./gameLogic');
-const { startEuchreGame, handleEuchreBid, handleEuchrePlayCard, fillEmptySeatsWithCPUs } = require('./euchreLogic');
+const { startEuchreGame, handleEuchreBid, handleEuchrePlayCard } = require('./euchreLogic');
 
 function setupSocket(io) {
   io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
-    socket.emit('updateActiveRooms', getActiveRooms());
+    
+    // Send updated active rooms immediately on connection
+    io.emit('updateActiveRooms', getActiveRooms());
 
     socket.on('createRoom', (data) => {
       const roomId = createRoom(data);
@@ -18,19 +20,27 @@ function setupSocket(io) {
       handleJoinRoom(io, socket, data);
       // Make sure the roomId is attached to the socket
       socket.roomId = data.roomId;
+      // Update active rooms after a player joins
+      io.emit('updateActiveRooms', getActiveRooms());
     });
     
     socket.on('sitAtTable', (seatNumber) => {
       handleSitAtTable(io, socket, seatNumber);
+      // Update active rooms after seat changes
+      io.emit('updateActiveRooms', getActiveRooms());
     });
     
     socket.on('standFromTable', () => {
       handleStandFromTable(io, socket);
+      // Update active rooms after seat changes
+      io.emit('updateActiveRooms', getActiveRooms());
     });
     
     socket.on('disconnect', () => {
       console.log('User disconnected:', socket.id);
       handleDisconnect(io, socket);
+      // Update active rooms after disconnection
+      io.emit('updateActiveRooms', getActiveRooms());
     });
 
     // Generic game starter
@@ -44,8 +54,7 @@ function setupSocket(io) {
         // Launch the appropriate game based on type
         switch(room.gameType) {
           case 'euchre':
-            // Fill empty seats with CPUs before starting
-            fillEmptySeatsWithCPUs(roomId);
+            // No need to call fillEmptySeatsWithCPUs here, it's handled inside startEuchreGame
             startEuchreGame(io, roomId);
             break;
           default:
@@ -61,15 +70,21 @@ function setupSocket(io) {
     // Generic game events
     socket.on('diceRoll', (roll) => {
       rollDice(io, socket, roll);
+      // Update active rooms after game state changes
+      io.emit('updateActiveRooms', getActiveRooms());
     });
     
     // Euchre specific events
     socket.on('euchreBid', (bid) => {
       handleEuchreBid(io, socket, bid);
+      // Update active rooms after game state changes
+      io.emit('updateActiveRooms', getActiveRooms());
     });
     
     socket.on('euchrePlayCard', (cardIndex) => {
       handleEuchrePlayCard(io, socket, cardIndex);
+      // Update active rooms after game state changes
+      io.emit('updateActiveRooms', getActiveRooms());
     });
   });
 }
