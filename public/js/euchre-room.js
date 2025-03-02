@@ -77,17 +77,20 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Connect euchre game UI actions
     dealBtn.addEventListener('click', function() {
+      console.log('Deal button clicked - starting game');
       socket.emit('startGame');
       logEvent('Starting game...');
     });
     
     newGameBtn.addEventListener('click', function() {
+      console.log('New game button clicked');
       socket.emit('startGame');
       logEvent('Starting new game...');
     });
     
     orderUpBtn.addEventListener('click', function() {
       if (gameState && gameState.turnUpCard) {
+        console.log('Order up button clicked with suit:', gameState.turnUpCard.suit);
         socket.emit('euchreBid', { 
           action: 'orderUp', 
           suit: gameState.turnUpCard.suit 
@@ -97,6 +100,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     passBidBtn.addEventListener('click', function() {
+      console.log('Pass bid button clicked');
       socket.emit('euchreBid', { action: 'pass' });
       logEvent('You passed');
     });
@@ -104,6 +108,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.suit-btn').forEach(button => {
       button.addEventListener('click', function() {
         const suit = button.dataset.suit;
+        console.log('Suit button clicked:', suit);
         socket.emit('euchreBid', { 
           action: 'callSuit', 
           suit: suit 
@@ -113,6 +118,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     passSuitBtn.addEventListener('click', function() {
+      console.log('Pass suit button clicked');
       socket.emit('euchreBid', { action: 'pass' });
       logEvent('You passed');
     });
@@ -173,6 +179,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     socket.on('wrongPassword', function(data) {
+      alert(data.message);
+      window.location.href = '/';
+    });
+    
+    socket.on('roomNotFound', function(data) {
       alert(data.message);
       window.location.href = '/';
     });
@@ -238,10 +249,11 @@ document.addEventListener('DOMContentLoaded', function() {
       const playerName = room.playerNames[playerId];
       const index = parseInt(seatNumber) - 1;
       
-      if (sitButtons[index]) {
+      if (index >= 0 && index < sitButtons.length && sitButtons[index]) {
         sitButtons[index].style.display = 'none';
       }
-      if (seatLabels[index]) {
+      
+      if (index >= 0 && index < seatLabels.length && seatLabels[index]) {
         seatLabels[index].textContent = playerName;
         
         // Highlight current player
@@ -269,6 +281,8 @@ document.addEventListener('DOMContentLoaded', function() {
   function renderGameState() {
     if (!gameState) return;
     
+    console.log('Rendering game state. Game phase:', gameState.gamePhase);
+    
     // Render hands
     renderHands();
     
@@ -292,6 +306,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Only render if we have game state
     if (!gameState || !gameState.hands) return;
     
+    // Log the hand size for debugging
+    if (myPlayerId && gameState.hands[myPlayerId]) {
+      console.log('My hand size:', gameState.hands[myPlayerId].length);
+    }
+    
     // Map seat positions to player IDs
     const seatToPlayerId = {};
     const positions = ['north', 'west', 'south', 'east']; // In seat order 1,2,3,4
@@ -308,6 +327,8 @@ document.addEventListener('DOMContentLoaded', function() {
       seatToPlayerId[position] = playerId;
     }
     
+    console.log('Seat to player mapping:', seatToPlayerId);
+    
     // Render each position's hand
     positions.forEach(position => {
       const playerId = seatToPlayerId[position];
@@ -317,6 +338,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!container) return;
       
       const cards = gameState.hands[playerId];
+      console.log(`Rendering ${cards.length} cards for ${position} (${playerId})`);
       
       // Determine if we should show cards (only for current player)
       const shouldShowCards = (playerId === myPlayerId);
@@ -381,6 +403,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // If in bidding phase, show turn-up card
     if ((gameState.gamePhase === 'bidding1' || gameState.gamePhase === 'bidding2') && gameState.turnUpCard) {
+      console.log('Rendering turn-up card:', gameState.turnUpCard);
+      
       const cardEl = document.createElement('div');
       cardEl.className = 'card turn-up-card';
       
@@ -416,6 +440,8 @@ document.addEventListener('DOMContentLoaded', function() {
     } 
     // If in playing phase, show current trick
     else if (gameState.gamePhase === 'playing' && gameState.currentTrick && gameState.currentTrick.length > 0) {
+      console.log('Rendering current trick with', gameState.currentTrick.length, 'cards');
+      
       // Map player IDs to positions
       const playerIdToPosition = {};
       for (const [seatNumber, playerId] of Object.entries(roomState.playerSeats)) {
@@ -487,6 +513,7 @@ document.addEventListener('DOMContentLoaded', function() {
     biddingControls.style.display = 'none';
     suitSelection.style.display = 'none';
     newGameBtn.style.display = 'none';
+    dealBtn.style.display = 'none';
     
     // Only proceed if we have game state
     if (!gameState) return;
@@ -512,7 +539,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (gameState.gamePhase === 'idle') {
       infoText.textContent = 'Welcome to Euchre! Click Deal to start.';
       dealBtn.style.display = 'inline-block';
-      dealBtn.disabled = false;
+      dealBtn.disabled = roomState.seatedPlayers.length < 4;
     } 
     else if (gameState.gamePhase === 'bidding1') {
       dealBtn.style.display = 'none';

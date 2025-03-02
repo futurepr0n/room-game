@@ -81,14 +81,17 @@ function fillEmptySeatsWithCPUs(roomId) {
   
   // Log final state
   console.log('Room after filling with CPUs:');
-  console.log('- Seated players:', room.seatedPlayers);
-  console.log('- Player seats:', room.playerSeats);
+  console.log('- Seated players:', room.seatedPlayers.length);
+  console.log('- Player seats:', Object.keys(room.playerSeats).length);
   console.log('- Teams:', room.teams);
 }
 
 function startEuchreGame(io, roomId) {
   const room = roomStates[roomId];
-  if (!room) return;
+  if (!room) {
+    console.log('Room not found:', roomId);
+    return;
+  }
   
   console.log('Starting Euchre game for room:', roomId);
   
@@ -115,7 +118,9 @@ function startEuchreGame(io, roomId) {
   
   // Update active rooms to reflect game is active
   updateActiveRooms();
-  io.emit('updateActiveRooms');
+  io.emit('updateActiveRooms', updateActiveRooms());
+  
+  console.log('Emitting initial game state, current player:', euchreState.currentPlayer);
   
   // Emit the initial game state to all players
   io.to(roomId).emit('euchreGameState', { 
@@ -123,8 +128,10 @@ function startEuchreGame(io, roomId) {
     roomState: room
   });
   
-  // If it's a CPU's turn, handle it
-  checkForCPUTurn(io, roomId);
+  // If it's a CPU's turn, handle it after a short delay
+  setTimeout(() => {
+    checkForCPUTurn(io, roomId);
+  }, 1000);
 }
 
 function getFilteredGameState(euchreState, room) {
@@ -147,6 +154,8 @@ function createDeck(euchreState) {
       euchreState.deck.push({rank, suit});
     });
   });
+
+  console.log('Created deck with', euchreState.deck.length, 'cards');
 }
 
 function shuffleDeck(euchreState) {
@@ -154,41 +163,47 @@ function shuffleDeck(euchreState) {
     const j = Math.floor(Math.random() * (i + 1));
     [euchreState.deck[i], euchreState.deck[j]] = [euchreState.deck[j], euchreState.deck[i]];
   }
+  console.log('Shuffled deck');
 }
 
 function dealCards(euchreState, room) {
+  // Make sure we have players seated
+  if (!room.seatedPlayers || room.seatedPlayers.length === 0) {
+    console.log('No seated players to deal to!');
+    return;
+  }
+  
+  console.log('Dealing cards to', room.seatedPlayers.length, 'players');
+  
   // Initialize player hands and tricks
   for (const playerId of room.seatedPlayers) {
     euchreState.hands[playerId] = [];
     euchreState.tricksWon[playerId] = 0;
   }
   
-  // Deal 5 cards to each player in the standard Euchre pattern (3-2-3-2 or 2-3-2-3)
-  const dealPattern = [[3, 2], [2, 3], [3, 2], [2, 3]];
-  let cardIndex = 0;
-  
-  for (let pattern = 0; pattern < 2; pattern++) {
-    for (let i = 0; i < 4; i++) {
-      const playerIndex = (euchreState.dealerPosition + 1 + i) % 4;
-      if (playerIndex >= room.seatedPlayers.length) continue;
+  // Deal 5 cards to each player in the standard Euchre pattern
+  // Each player gets 5 cards total (either 2-3 or 3-2)
+  for (let cardNum = 0; cardNum < 5; cardNum++) {
+    for (let playerIndex = 0; playerIndex < room.seatedPlayers.length; playerIndex++) {
+      const playerId = room.seatedPlayers[(euchreState.dealerPosition + 1 + playerIndex) % room.seatedPlayers.length];
       
-      const playerId = room.seatedPlayers[playerIndex];
-      if (!playerId) continue; // Skip if no player in this seat
-      
-      const cardsThisRound = dealPattern[i][pattern];
-      
-      for (let j = 0; j < cardsThisRound; j++) {
-        if (cardIndex < euchreState.deck.length) {
-          euchreState.hands[playerId].push(euchreState.deck[cardIndex]);
-          cardIndex++;
-        }
+      if (cardNum < euchreState.deck.length) {
+        euchreState.hands[playerId].push(euchreState.deck.shift());
       }
     }
   }
   
   // Turn up next card for bidding
-  if (cardIndex < euchreState.deck.length) {
-    euchreState.turnUpCard = euchreState.deck[cardIndex];
+  if (euchreState.deck.length > 0) {
+    euchreState.turnUpCard = euchreState.deck.shift();
+    console.log('Turn up card:', euchreState.turnUpCard);
+  } else {
+    console.log('Not enough cards in deck for turn up card!');
+  }
+  
+  // Log hand sizes
+  for (const playerId of room.seatedPlayers) {
+    console.log(`Player ${playerId} has ${euchreState.hands[playerId].length} cards`);
   }
 }
 
@@ -199,6 +214,8 @@ function startBidding(euchreState, room) {
   // First player after dealer starts bidding
   const starterIndex = (euchreState.dealerPosition + 1) % room.seatedPlayers.length;
   euchreState.currentPlayer = room.seatedPlayers[starterIndex];
+  
+  console.log('Starting bidding, first player:', euchreState.currentPlayer);
 }
 
 function addToGameLog(euchreState, message) {
@@ -206,21 +223,33 @@ function addToGameLog(euchreState, message) {
     euchreState.gameLog.shift(); // Keep log at reasonable size
   }
   euchreState.gameLog.push(message);
+  console.log('Game log:', message);
 }
 
 function handleEuchreBid(io, socket, bid) {
-  const roomId = socket.roomId;
+  const roomId = socket.roomId || socket.id;
   const room = roomStates[roomId];
-  if (!room || !room.gameActive || room.gameType !== 'euchre') return;
+  
+  if (!room || !room.gameActive || room.gameType !== 'euchre') {
+    console.log('Invalid room state for bidding');
+    return;
+  }
   
   const euchreState = room.euchre;
-  if (!euchreState) return;
+  if (!euchreState) {
+    console.log('No euchre state found');
+    return;
+  }
   
   // Make sure it's the current player's turn
   const playerId = socket.id || socket;
-  if (euchreState.currentPlayer !== playerId) return;
+  if (euchreState.currentPlayer !== playerId) {
+    console.log('Not the current player\'s turn:', playerId, 'vs', euchreState.currentPlayer);
+    return;
+  }
   
   const playerName = room.playerNames[playerId];
+  console.log(`Player ${playerName} (${playerId}) is bidding:`, bid.action);
   
   // Process bid based on game phase
   if (euchreState.gamePhase === 'bidding1') {
@@ -233,7 +262,6 @@ function handleEuchreBid(io, socket, bid) {
       const dealerSeatNum = parseInt(Object.keys(room.playerSeats).find(seatNum => 
         room.playerSeats[seatNum] === room.seatedPlayers[euchreState.dealerPosition]
       ));
-      const dealerTeam = (dealerSeatNum === 1 || dealerSeatNum === 3) ? 1 : 2;
       
       // Find dealer's player ID
       const dealerId = room.seatedPlayers[euchreState.dealerPosition];
@@ -326,6 +354,9 @@ function handleEuchreBid(io, socket, bid) {
     }
   }
   
+  // Log the current player
+  console.log('Current player is now:', euchreState.currentPlayer);
+  
   // Update game state for all players
   io.to(roomId).emit('euchreGameState', { 
     gameState: getFilteredGameState(euchreState, room),
@@ -333,11 +364,13 @@ function handleEuchreBid(io, socket, bid) {
   });
   
   // Check if next player is CPU
-  checkForCPUTurn(io, roomId);
+  setTimeout(() => {
+    checkForCPUTurn(io, roomId);
+  }, 1000);
 }
 
 function handleEuchrePlayCard(io, socket, cardIndex) {
-  const roomId = socket.roomId;
+  const roomId = socket.roomId || socket.id;
   const room = roomStates[roomId];
   if (!room || !room.gameActive || room.gameType !== 'euchre') return;
   
@@ -475,7 +508,9 @@ function handleEuchrePlayCard(io, socket, cardIndex) {
       });
       
       // Check if next player is CPU
-      checkForCPUTurn(io, roomId);
+      setTimeout(() => {
+        checkForCPUTurn(io, roomId);
+      }, 1000);
     }, 1500);
   } else {
     // Move to next player
@@ -491,7 +526,9 @@ function handleEuchrePlayCard(io, socket, cardIndex) {
   });
   
   // Check if next player is CPU
-  checkForCPUTurn(io, roomId);
+  setTimeout(() => {
+    checkForCPUTurn(io, roomId);
+  }, 1000);
 }
 
 function determineTrickWinner(euchreState) {
@@ -572,14 +609,23 @@ function determineMakerTeam(euchreState, room) {
 // Handle CPU actions
 function handleCPUTurns(io, roomId) {
   const room = roomStates[roomId];
-  if (!room || !room.gameActive || room.gameType !== 'euchre') return;
+  if (!room || !room.gameActive || room.gameType !== 'euchre') {
+    console.log('Invalid room for CPU turn');
+    return;
+  }
   
   const euchreState = room.euchre;
-  if (!euchreState) return;
+  if (!euchreState) {
+    console.log('No euchre state for CPU turn');
+    return;
+  }
   
   // Check if it's a CPU's turn
   const currentPlayerId = euchreState.currentPlayer;
-  if (!currentPlayerId || !currentPlayerId.startsWith('cpu_')) return;
+  if (!currentPlayerId || !currentPlayerId.startsWith('cpu_')) {
+    console.log('Not a CPU turn:', currentPlayerId);
+    return;
+  }
   
   console.log(`CPU turn for player: ${currentPlayerId}`);
   
@@ -603,13 +649,22 @@ function cpuBid(io, roomId, cpuId) {
   const room = roomStates[roomId];
   const euchreState = room.euchre;
   
+  if (!euchreState) {
+    console.log('No euchre state for CPU bid');
+    return;
+  }
+  
+  console.log('CPU bidding, game phase:', euchreState.gamePhase);
+  
   if (euchreState.gamePhase === 'bidding1') {
     // 30% chance to order up in first round
     if (Math.random() < 0.3) {
       // Order up
+      console.log('CPU ordering up');
       handleEuchreBid(io, { id: cpuId, roomId }, { action: 'orderUp', suit: euchreState.turnUpCard.suit });
     } else {
       // Pass
+      console.log('CPU passing');
       handleEuchreBid(io, { id: cpuId, roomId }, { action: 'pass' });
     }
   } 
@@ -622,9 +677,11 @@ function cpuBid(io, roomId, cpuId) {
       );
       const selectedSuit = availableSuits[Math.floor(Math.random() * availableSuits.length)];
       
+      console.log('CPU calling suit:', selectedSuit);
       handleEuchreBid(io, { id: cpuId, roomId }, { action: 'callSuit', suit: selectedSuit });
     } else {
       // Pass
+      console.log('CPU passing in second round');
       handleEuchreBid(io, { id: cpuId, roomId }, { action: 'pass' });
     }
   }
@@ -635,8 +692,18 @@ function cpuPlayCard(io, roomId, cpuId) {
   const room = roomStates[roomId];
   const euchreState = room.euchre;
   
+  if (!euchreState) {
+    console.log('No euchre state for CPU play card');
+    return;
+  }
+  
   const hand = euchreState.hands[cpuId];
-  if (!hand || hand.length === 0) return;
+  if (!hand || hand.length === 0) {
+    console.log('No hand for CPU player');
+    return;
+  }
+  
+  console.log(`CPU ${cpuId} playing card from hand with ${hand.length} cards`);
   
   let cardIndex = 0; // Default to first card
   
@@ -653,6 +720,7 @@ function cpuPlayCard(io, roomId, cpuId) {
       })[0];
       
       cardIndex = highestCard.index;
+      console.log(`CPU playing follow suit card: ${hand[cardIndex].rank} of ${hand[cardIndex].suit}`);
     } else {
       // Can't follow suit, play lowest card
       const lowestCard = hand.map((card, index) => ({ card, index }))
@@ -662,6 +730,7 @@ function cpuPlayCard(io, roomId, cpuId) {
                             })[0];
       
       cardIndex = lowestCard.index;
+      console.log(`CPU playing off-suit card: ${hand[cardIndex].rank} of ${hand[cardIndex].suit}`);
     }
   } else {
     // Leading - play highest card
@@ -672,6 +741,7 @@ function cpuPlayCard(io, roomId, cpuId) {
                           })[0];
       
     cardIndex = highestCard.index;
+    console.log(`CPU leading with card: ${hand[cardIndex].rank} of ${hand[cardIndex].suit}`);
   }
   
   // Play the selected card
@@ -680,14 +750,21 @@ function cpuPlayCard(io, roomId, cpuId) {
 
 function checkForCPUTurn(io, roomId) {
   const room = roomStates[roomId];
-  if (!room || !room.gameActive) return;
+  if (!room || !room.gameActive) {
+    return;
+  }
   
   const euchreState = room.euchre;
-  if (!euchreState) return;
+  if (!euchreState) {
+    return;
+  }
   
   const currentPlayerId = euchreState.currentPlayer;
   if (currentPlayerId && currentPlayerId.startsWith('cpu_')) {
+    console.log('Triggering CPU turn for', currentPlayerId);
     handleCPUTurns(io, roomId);
+  } else {
+    console.log('Current player is not CPU:', currentPlayerId);
   }
 }
 

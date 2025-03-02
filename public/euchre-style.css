@@ -328,6 +328,7 @@ button:disabled {
 .sit-north { top: 10px; left: 50%; transform: translateX(-50%); }
 .sit-west { left: 10px; top: 10px; }
 .sit-east { right: 10px; top: 10px; }
+.sit-south { bottom: 10px; left: 50%; transform: translateX(-50%); }
 
 /* Bidding controls */
 .suit-btn {

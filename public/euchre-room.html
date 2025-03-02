@@ -13,7 +13,7 @@
   
   <div class="game-controls">
     <button id="deal-btn">Deal</button>
-    <button id="new-game-btn">New Game</button>
+    <button id="new-game-btn" style="display:none;">New Game</button>
   </div>
   
   <div class="score-board">
@@ -38,27 +38,28 @@
     <div class="game-table">
       <div class="player-area player-north">
         <button class="sit-button sit-north" id="sit-button-1">Sit Here</button>
-        <div class="player-tag tag-north">CPU</div>
+        <div class="player-tag tag-north">North</div>
         <div class="player-name" id="seat-label-1">North</div>
         <div class="player-score">Tricks: <span class="tricks-count">0</span></div>
         <div class="card-container" id="north-hand"></div>
       </div>
       <div class="player-area player-east">
         <button class="sit-button sit-east" id="sit-button-4">Sit Here</button>
-        <div class="player-tag tag-east">CPU</div>
+        <div class="player-tag tag-east">East</div>
         <div class="player-name" id="seat-label-4">East</div>
         <div class="player-score">Tricks: <span class="tricks-count">0</span></div>
         <div class="card-container" id="east-hand"></div>
       </div>
-      <div class="player-area player-south human-player">
-        <div class="player-tag tag-south">You</div>
-        <div class="player-name" id="seat-label-3">South (You)</div>
+      <div class="player-area player-south">
+        <button class="sit-button sit-south" id="sit-button-3">Sit Here</button>
+        <div class="player-tag tag-south">South</div>
+        <div class="player-name" id="seat-label-3">South</div>
         <div class="player-score">Tricks: <span class="tricks-count">0</span></div>
         <div class="card-container" id="south-hand"></div>
       </div>
       <div class="player-area player-west">
         <button class="sit-button sit-west" id="sit-button-2">Sit Here</button>
-        <div class="player-tag tag-west">CPU</div>
+        <div class="player-tag tag-west">West</div>
         <div class="player-name" id="seat-label-2">West</div>
         <div class="player-score">Tricks: <span class="tricks-count">0</span></div>
         <div class="card-container" id="west-hand"></div>
