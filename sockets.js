@@ -1,4 +1,4 @@
-const { handleJoinRoom, handleSitAtTable, handleStandFromTable, handleDisconnect, getActiveRooms, createRoom } = require('./roomLogic');
+const { handleJoinRoom, handleSitAtTable, handleStandFromTable, handleDisconnect, getActiveRooms, createRoom, roomStates } = require('./roomLogic');
 const { startGame, rollDice } = require('./gameLogic');
 const { startEuchreGame, handleEuchreBid, handleEuchrePlayCard } = require('./euchreLogic');
 

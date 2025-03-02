@@ -25,9 +25,44 @@ function initializeEuchreGame(roomId) {
   return room.euchre;
 }
 
+function fillEmptySeatsWithCPUs(roomId) {
+  const room = roomStates[roomId];
+  if (!room) return;
+  
+  // Get occupied seat numbers
+  const occupiedSeats = Object.keys(room.playerSeats).map(Number);
+  
+  // Fill empty seats with CPU players
+  for (let seatNum = 1; seatNum <= 4; seatNum++) {
+    if (!occupiedSeats.includes(seatNum)) {
+      const cpuId = `cpu_${roomId}_${seatNum}`;
+      const cpuName = `CPU ${seatNum}`;
+      
+      // Add CPU to the room
+      room.players.push(cpuId);
+      room.seatedPlayers.push(cpuId);
+      room.playerNames[cpuId] = cpuName;
+      room.playerSeats[seatNum] = cpuId;
+      
+      // Assign to appropriate team
+      if (!room.teams) {
+        room.teams = { 1: [], 2: [] };
+      }
+      
+      if (seatNum === 1 || seatNum === 3) {
+        room.teams[1].push(cpuId);
+      } else {
+        room.teams[2].push(cpuId);
+      }
+    }
+  }
+}
+
 function startEuchreGame(io, roomId) {
   const room = roomStates[roomId];
   if (!room || room.gameType !== 'euchre') return;
+
+  fillEmptySeatsWithCPUs(roomId);
 
   room.gameActive = true;
   
