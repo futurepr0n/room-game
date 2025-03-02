@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
       updateSeatControls(room);
       
       // Start the game if we have 4 players seated
-      if (room.seatedPlayers && room.seatedPlayers.length === 4 && !room.gameActive) {
+      if (room.seatedPlayers && room.seatedPlayers.length > 0 && !room.gameActive) {
         dealBtn.disabled = false;
       } else {
         dealBtn.disabled = true;
