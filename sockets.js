@@ -65,10 +65,12 @@ function setupSocket(io) {
       if (room) {
         console.log(`Starting game of type ${room.gameType} in room ${roomId}`);
         
+        // Make sure we have all 4 seats filled before starting the game
+        ensureAllSeatsAreFilled(roomId);
+        
         // Launch the appropriate game based on type
         switch(room.gameType) {
           case 'euchre':
-            // No need to call fillEmptySeatsWithCPUs here, it's handled inside startEuchreGame
             startEuchreGame(io, roomId);
             break;
           default:
@@ -86,6 +88,67 @@ function setupSocket(io) {
         console.log('Room not found for starting game:', roomId);
       }
     });
+    
+    // New helper function to ensure all seats are filled
+    function ensureAllSeatsAreFilled(roomId) {
+      const room = roomStates[roomId];
+      if (!room) return;
+      
+      console.log('Checking seats before game start:', roomId);
+      
+      // Get occupied seat numbers
+      const occupiedSeats = Object.keys(room.playerSeats).map(Number);
+      console.log('Currently occupied seats:', occupiedSeats);
+      
+      // Fill empty seats with CPU players
+      let seatsAdded = false;
+      for (let seatNum = 1; seatNum <= 4; seatNum++) {
+        if (!occupiedSeats.includes(seatNum)) {
+          const cpuId = `cpu_${roomId}_${seatNum}`;
+          const cpuName = `CPU ${seatNum}`;
+          
+          console.log(`Adding CPU to seat ${seatNum}: ${cpuId}`);
+          
+          // Add CPU to the room
+          if (!room.players.includes(cpuId)) {
+            room.players.push(cpuId);
+          }
+          
+          if (!room.seatedPlayers.includes(cpuId)) {
+            room.seatedPlayers.push(cpuId);
+          }
+          
+          room.playerNames[cpuId] = cpuName;
+          room.playerSeats[seatNum] = cpuId;
+          
+          // Assign to appropriate team
+          if (!room.teams) {
+            room.teams = { 1: [], 2: [] };
+          }
+          
+          if (seatNum === 1 || seatNum === 3) {
+            // Add to team 1 if not already there
+            if (!room.teams[1].includes(cpuId)) {
+              room.teams[1].push(cpuId);
+            }
+          } else {
+            // Add to team 2 if not already there
+            if (!room.teams[2].includes(cpuId)) {
+              room.teams[2].push(cpuId);
+            }
+          }
+          
+          seatsAdded = true;
+        }
+      }
+      
+      if (seatsAdded) {
+        // Notify all clients of the updated room state
+        io.to(roomId).emit('updateRoom', room);
+      }
+      
+      console.log('Seats after filling:', Object.keys(room.playerSeats).map(Number));
+    }
 
     // Generic game events
     socket.on('diceRoll', (roll) => {

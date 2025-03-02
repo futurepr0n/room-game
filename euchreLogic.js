@@ -60,7 +60,7 @@ function fillEmptySeatsWithCPUs(roomId) {
       room.playerNames[cpuId] = cpuName;
       room.playerSeats[seatNum] = cpuId;
       
-      // Assign to appropriate team
+      // Ensure CPU is assigned to the correct team
       if (!room.teams) {
         room.teams = { 1: [], 2: [] };
       }
@@ -79,11 +79,12 @@ function fillEmptySeatsWithCPUs(roomId) {
     }
   }
   
-  // Log final state
   console.log('Room after filling with CPUs:');
   console.log('- Seated players:', room.seatedPlayers.length);
   console.log('- Player seats:', Object.keys(room.playerSeats).length);
   console.log('- Teams:', room.teams);
+  
+  return room;
 }
 
 function startEuchreGame(io, roomId) {
@@ -95,9 +96,17 @@ function startEuchreGame(io, roomId) {
   
   console.log('Starting Euchre game for room:', roomId);
   
-  // Ensure we have players in all seats
+  // Ensure we have players in all seats BEFORE game initialization
   fillEmptySeatsWithCPUs(roomId);
-
+  
+  // Verify all seats are filled
+  const filledSeats = Object.keys(room.playerSeats).length;
+  if (filledSeats < 4) {
+    console.error(`Cannot start game: only ${filledSeats} seats filled`);
+    io.to(roomId).emit('gameError', { message: 'Failed to fill all seats' });
+    return;
+  }
+  
   room.gameActive = true;
   
   // Reset the Euchre game state
@@ -642,16 +651,13 @@ function handleCPUTurns(io, roomId) {
     return;
   }
   
-  console.log(`CPU turn for player: ${currentPlayerId}`);
+  console.log(`CPU turn for player: ${currentPlayerId} in phase: ${euchreState.gamePhase}`);
   
   // Delay the CPU move to make it feel more natural
   setTimeout(() => {
     try {
       // Handle different game phases
-      if (euchreState.gamePhase === 'bidding1') {
-        cpuBid(io, roomId, currentPlayerId);
-      } 
-      else if (euchreState.gamePhase === 'bidding2') {
+      if (euchreState.gamePhase === 'bidding1' || euchreState.gamePhase === 'bidding2') {
         cpuBid(io, roomId, currentPlayerId);
       } 
       else if (euchreState.gamePhase === 'playing') {
@@ -659,6 +665,12 @@ function handleCPUTurns(io, roomId) {
       }
     } catch (error) {
       console.error('Error in CPU turn:', error);
+      
+      // Recovery attempt - move to next player if possible
+      if (euchreState.gamePhase === 'bidding1' || euchreState.gamePhase === 'bidding2') {
+        console.log('Error recovery: CPU passing after error');
+        handleEuchreBid(io, { id: currentPlayerId, roomId: roomId }, { action: 'pass' });
+      }
     }
   }, 1500);
 }
@@ -673,34 +685,40 @@ function cpuBid(io, roomId, cpuId) {
     return;
   }
   
-  console.log('CPU bidding, game phase:', euchreState.gamePhase);
+  console.log(`CPU ${cpuId} bidding, game phase: ${euchreState.gamePhase}`);
   
   if (euchreState.gamePhase === 'bidding1') {
-    // 30% chance to order up in first round
-    if (Math.random() < 0.3) {
+    // More aggressive CPU bidding (40% chance to order up in first round)
+    if (Math.random() < 0.4) {
       // Order up
-      console.log('CPU ordering up');
-      handleEuchreBid(io, { id: cpuId, roomId: roomId }, { action: 'orderUp', suit: euchreState.turnUpCard.suit });
+      console.log(`CPU ${cpuId} ordering up ${euchreState.turnUpCard.suit}`);
+      handleEuchreBid(io, { id: cpuId, roomId: roomId }, { 
+        action: 'orderUp', 
+        suit: euchreState.turnUpCard.suit 
+      });
     } else {
       // Pass
-      console.log('CPU passing');
+      console.log(`CPU ${cpuId} passing`);
       handleEuchreBid(io, { id: cpuId, roomId: roomId }, { action: 'pass' });
     }
   } 
   else if (euchreState.gamePhase === 'bidding2') {
-    // 40% chance to call a suit in second round
-    if (Math.random() < 0.4) {
+    // 50% chance to call a suit in second round (more aggressive)
+    if (Math.random() < 0.5) {
       // Select a random suit that isn't the turn-up suit
       const availableSuits = ['hearts', 'diamonds', 'clubs', 'spades'].filter(s => 
         s !== euchreState.turnUpCard.suit
       );
       const selectedSuit = availableSuits[Math.floor(Math.random() * availableSuits.length)];
       
-      console.log('CPU calling suit:', selectedSuit);
-      handleEuchreBid(io, { id: cpuId, roomId: roomId }, { action: 'callSuit', suit: selectedSuit });
+      console.log(`CPU ${cpuId} calling suit: ${selectedSuit}`);
+      handleEuchreBid(io, { id: cpuId, roomId: roomId }, { 
+        action: 'callSuit', 
+        suit: selectedSuit 
+      });
     } else {
       // Pass
-      console.log('CPU passing in second round');
+      console.log(`CPU ${cpuId} passing in second round`);
       handleEuchreBid(io, { id: cpuId, roomId: roomId }, { action: 'pass' });
     }
   }
@@ -770,22 +788,30 @@ function cpuPlayCard(io, roomId, cpuId) {
 function checkForCPUTurn(io, roomId) {
   const room = roomStates[roomId];
   if (!room || !room.gameActive) {
+    console.log('Room not active, skipping CPU turn check');
     return;
   }
   
   const euchreState = room.euchre;
   if (!euchreState) {
+    console.log('No euchre state found, skipping CPU turn check');
     return;
   }
   
   const currentPlayerId = euchreState.currentPlayer;
-  if (currentPlayerId && currentPlayerId.startsWith('cpu_')) {
-    console.log('Triggering CPU turn for', currentPlayerId);
+  if (!currentPlayerId) {
+    console.error('No current player set in euchreState');
+    return;
+  }
+
+  if (currentPlayerId.startsWith('cpu_')) {
+    console.log(`Triggering CPU turn for ${currentPlayerId} (phase: ${euchreState.gamePhase})`);
     handleCPUTurns(io, roomId);
   } else {
-    console.log('Current player is not CPU:', currentPlayerId);
+    console.log(`Current player ${currentPlayerId} is not a CPU - waiting for human action`);
   }
 }
+
 
 module.exports = {
   startEuchreGame,

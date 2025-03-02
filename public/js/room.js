@@ -44,7 +44,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
     sitButtons.forEach((button, index) => {
       button.addEventListener('click', function() {
-        socket.emit('sitAtTable', index + 1);
+        const seatNumber = index + 1;
+        console.log('Requesting to sit at seat:', seatNumber);
+        
+        // Temporarily disable the button to prevent multiple clicks
+        button.disabled = true;
+        button.textContent = 'Joining...';
+        
+        // Send the sit request to the server
+        socket.emit('sitAtTable', seatNumber);
+        
+        // Re-enable after a short delay if no response
+        setTimeout(() => {
+          if (button.textContent === 'Joining...') {
+            button.disabled = false;
+            button.textContent = 'Sit';
+          }
+        }, 3000);
       });
     });
 
@@ -54,49 +70,105 @@ document.addEventListener('DOMContentLoaded', function() {
 
     socket.on('updateRoom', function(room) {
       console.log('Room updated:', room); // Logging for debugging
-
+    
+      // Update player list in lobby
       playerList.innerHTML = '';
       for (const playerId in room.playerNames) {
         const playerName = room.playerNames[playerId];
         const playerItem = document.createElement('li');
-        playerItem.textContent = playerName;
-
+        
+        // Indicate CPU players in the list
+        if (playerId.startsWith('cpu_')) {
+          playerItem.textContent = `${playerName} (CPU)`;
+          playerItem.style.color = '#888'; // Gray out CPU players
+        } else {
+          playerItem.textContent = playerName;
+        }
+    
         playerList.appendChild(playerItem);
       }
-
+    
+      // Update seated players list
       seatedPlayerList.innerHTML = '';
       sitButtons.forEach((button, index) => {
         button.style.display = 'inline-block';
         seatLabels[index].textContent = '';
+        seatLabels[index].style.color = ''; // Reset color
       });
+    
 
-      for (const [seatNumber, playerId] of Object.entries(room.playerSeats)) {
+      // Show seated players and mark CPUs
+    for (const [seatNumber, playerId] of Object.entries(room.playerSeats)) {
+      const playerName = room.playerNames[playerId];
+      const seatIndex = parseInt(seatNumber) - 1;
+      const isCpu = playerId.startsWith('cpu_');
+      
+      // Update the list of seated players
+      const playerItem = document.createElement('li');
+      if (isCpu) {
+        playerItem.textContent = `Seat ${seatNumber}: ${playerName} (CPU)`;
+        playerItem.style.color = '#888'; // Gray out CPU players
+      } else {
+        playerItem.textContent = `Seat ${seatNumber}: ${playerName}`;
+        
+        // Highlight if it's the current user
+        if (playerId === socket.id) {
+          playerItem.style.fontWeight = 'bold';
+          playerItem.textContent += ' (You)';
+        }
+      }
+    
+      seatedPlayerList.appendChild(playerItem);
+    
+      // Update the seat labels and hide sit buttons for occupied seats
+      if (seatIndex >= 0 && seatIndex < sitButtons.length) {
+        sitButtons[seatIndex].style.display = 'none';
+        
+        if (seatIndex < seatLabels.length) {
+          // Mark CPU players in seat labels
+          if (isCpu) {
+            seatLabels[seatIndex].textContent = `${playerName} (CPU)`;
+            seatLabels[seatIndex].style.color = '#888';
+          } else {
+            seatLabels[seatIndex].textContent = playerName;
+            
+            // Highlight if it's the current user
+            if (playerId === socket.id) {
+              seatLabels[seatIndex].textContent += ' (You)';
+              seatLabels[seatIndex].style.fontWeight = 'bold';
+            }
+          }
+        }
+      }
+    }
+    
+  // Enable/disable stand button based on whether the player is seated
+  standButton.disabled = !room.seatedPlayers.includes(socket.id);
+
+  // Update game button state based on current player
+  if (socket.id === room.currentPlayer) {
+    gameButton.disabled = false;
+    gameButton.textContent = `Your Turn (${room.playerNames[socket.id]}) - Click Me!`;
+  } else if (room.currentPlayer) {
+    gameButton.disabled = true;
+    gameButton.textContent = `Wait for ${room.playerNames[room.currentPlayer]}'s Turn`;
+  } else {
+    gameButton.disabled = true;
+    gameButton.textContent = 'Wait for Your Turn';
+  }
+
+  // Update scores if available
+  if (room.playerWins) {
+    const scoresHTML = Object.entries(room.playerWins)
+      .map(([playerId, wins]) => {
         const playerName = room.playerNames[playerId];
-        const playerItem = document.createElement('li');
-        playerItem.textContent = `${seatNumber}. ${playerName}`;
-
-        seatedPlayerList.appendChild(playerItem);
-        sitButtons[seatNumber - 1].style.display = 'none';
-        seatLabels[seatNumber - 1].textContent = playerName;
-      }
-
-      if (room.seatedPlayers.includes(socket.id)) {
-        standButton.disabled = false;
-      } else {
-        standButton.disabled = true;
-      }
-
-      if (socket.id === room.currentPlayer) {
-        gameButton.disabled = false;
-        gameButton.textContent = `Your Turn (${room.playerNames[socket.id]}) - Click Me!`;
-      } else {
-        gameButton.disabled = true;
-        gameButton.textContent = `Wait for ${room.playerNames[room.currentPlayer]}'s Turn`;
-      }
-
-      const scoresHTML = Object.entries(room.playerWins).map(([playerId, wins]) => `<li>${room.playerNames[playerId]}: ${wins} wins</li>`).join('');
-      scoresContainer.innerHTML = `<h3>Scores:</h3><ul>${scoresHTML}</ul>`;
-    });
+        const isCpu = playerId.startsWith('cpu_');
+        return `<li>${playerName}${isCpu ? ' (CPU)' : ''}: ${wins} wins</li>`;
+      })
+      .join('');
+    scoresContainer.innerHTML = `<h3>Scores:</h3><ul>${scoresHTML}</ul>`;
+  }
+});
 
     socket.on('updateCurrentRoundRolls', function(rolls) {
       currentRoundRolls = rolls;
