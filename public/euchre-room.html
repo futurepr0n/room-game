@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Euchre Game Room</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="euchre-style.css">
+</head>
+<body>
+  <h1>Euchre Game Room</h1>
+  
+  <div class="game-controls">
+    <button id="deal-btn">Deal</button>
+    <button id="new-game-btn">New Game</button>
+  </div>
+  
+  <div class="score-board">
+    <div>Team 1: <span id="team-score-1">0</span></div>
+    <div>Team 2: <span id="team-score-2">0</span></div>
+  </div>
+  
+  <!-- Player lists and room info from your existing system -->
+  <div class="player-lists">
+    <div>
+      <h3>Players in the Room:</h3>
+      <ul id="player-list"></ul>
+    </div>
+    <div>
+      <h3>Players at the Table:</h3>
+      <ul id="seated-player-list"></ul>
+    </div>
+  </div>
+  
+  <!-- Table layout -->
+  <div class="game-container">
+    <div class="game-table">
+      <div class="player-area player-north">
+        <button class="sit-button sit-north" id="sit-button-1">Sit Here</button>
+        <div class="player-tag tag-north">CPU</div>
+        <div class="player-name" id="seat-label-1">North</div>
+        <div class="player-score">Tricks: <span class="tricks-count">0</span></div>
+        <div class="card-container" id="north-hand"></div>
+      </div>
+      <div class="player-area player-east">
+        <button class="sit-button sit-east" id="sit-button-4">Sit Here</button>
+        <div class="player-tag tag-east">CPU</div>
+        <div class="player-name" id="seat-label-4">East</div>
+        <div class="player-score">Tricks: <span class="tricks-count">0</span></div>
+        <div class="card-container" id="east-hand"></div>
+      </div>
+      <div class="player-area player-south human-player">
+        <div class="player-tag tag-south">You</div>
+        <div class="player-name" id="seat-label-3">South (You)</div>
+        <div class="player-score">Tricks: <span class="tricks-count">0</span></div>
+        <div class="card-container" id="south-hand"></div>
+      </div>
+      <div class="player-area player-west">
+        <button class="sit-button sit-west" id="sit-button-2">Sit Here</button>
+        <div class="player-tag tag-west">CPU</div>
+        <div class="player-name" id="seat-label-2">West</div>
+        <div class="player-score">Tricks: <span class="tricks-count">0</span></div>
+        <div class="card-container" id="west-hand"></div>
+      </div>
+      
+      <div class="trick-area" id="trick-area"></div>
+      
+      <div id="game-info" class="game-info">
+        <p id="info-text">Welcome to Euchre! Click Deal to start.</p>
+        <div id="bidding-controls" style="display: none; margin-top: 10px;">
+          <button id="order-up">Order Up</button>
+          <button id="pass-bid">Pass</button>
+        </div>
+        <div id="suit-selection" style="display: none; margin-top: 10px;">
+          <button class="suit-btn" data-suit="hearts">Hearts ♥</button>
+          <button class="suit-btn" data-suit="diamonds">Diamonds ♦</button>
+          <button class="suit-btn" data-suit="clubs">Clubs ♣</button>
+          <button class="suit-btn" data-suit="spades">Spades ♠</button>
+          <button id="pass-suit">Pass</button>
+        </div>
+      </div>
+      
+      <div id="trump-indicator" class="trump-indicator" style="display: none;">
+        Trump: <span id="trump-suit"></span>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Chat and invitation controls from your system -->
+  <div class="room-controls">
+    <button id="stand-button">Stand</button>
+    <button id="invite-button">Invite</button>
+  </div>
+  
+  <div class="log-container" id="game-log">
+    <div class="log-entry">Game started. Join a seat to play.</div>
+  </div>
+  
+  <script src="js/euchre-room.js"></script>
+</body>
+</html>

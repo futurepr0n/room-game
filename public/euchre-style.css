@@ -1,0 +1,325 @@
+/* Base game styles */
+.game-container {
+  width: 100%;
+  max-width: 800px;
+  height: 600px;
+  position: relative;
+  margin: 0 auto;
+  background-color: #0a7c46;
+  border-radius: 10px;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.game-table {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* Player areas */
+.player-area {
+  position: absolute;
+  width: 180px;
+  height: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.player-south {
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.player-west {
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.player-north {
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.player-east {
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Cards */
+.card-container {
+  display: flex;
+  justify-content: center;
+  height: 70px;
+}
+
+.card {
+  width: 50px;
+  height: 75px;
+  background-color: white;
+  border-radius: 5px;
+  margin: 0 2px;
+  cursor: pointer;
+  position: relative;
+  box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s, box-shadow 0.2s;
+  color: black;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 18px;
+  user-select: none;
+}
+
+.human-player .card:hover {
+  transform: translateY(-10px);
+  box-shadow: 2px 5px 5px rgba(0, 0, 0, 0.4);
+}
+
+.card.red {
+  color: red;
+}
+
+.card-back {
+  background-color: navy;
+  background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.1) 0, rgba(255,255,255,.1) 10px, transparent 10px, transparent 20px);
+}
+
+/* Card layout */
+.card-symbol {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.card-value {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+/* Game area and controls */
+.trick-area {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.trick-card {
+  position: absolute;
+  width: 50px;
+  height: 75px;
+  background-color: white;
+  border-radius: 5px;
+  box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+  color: black;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 18px;
+}
+
+.trick-south { bottom: 20px; }
+.trick-west { left: 20px; }
+.trick-north { top: 20px; }
+.trick-east { right: 20px; }
+
+.trick-card.red { color: red; }
+
+.game-info {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.7);
+  border-radius: 10px;
+  padding: 15px;
+  text-align: center;
+  width: 300px;
+  z-index: 100;
+}
+
+.trump-indicator {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background-color: rgba(0, 0, 0, 0.5);
+  padding: 8px;
+  border-radius: 5px;
+  font-size: 14px;
+}
+
+/* Game status indicators */
+.turn-indicator {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background-color: gold;
+  border-radius: 50%;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes highlight-winner {
+  0% { box-shadow: 0 0 5px 2px rgba(255, 215, 0, 0.5); }
+  50% { box-shadow: 0 0 20px 5px rgba(255, 215, 0, 0.8); }
+  100% { box-shadow: 0 0 5px 2px rgba(255, 215, 0, 0.5); }
+}
+
+.trick-winner {
+  z-index: 60;
+  animation: highlight-winner 1.5s infinite;
+  transform: scale(1.1);
+  filter: brightness(1.2);
+}
+
+.trick-loser {
+  filter: brightness(0.8);
+  opacity: 0.9;
+}
+
+/* Game controls */
+/* Game controls */
+.game-controls {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+  
+  button {
+    padding: 8px 15px;
+    background-color: #00529b;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  
+  button:hover {
+    background-color: #0066cc;
+  }
+  
+  button:disabled {
+    background-color: #666;
+    cursor: not-allowed;
+  }
+  
+  /* Score board and logs */
+  .score-board {
+    display: flex;
+    gap: 20px;
+    margin-top: 10px;
+    font-size: 16px;
+    background-color: rgba(0, 0, 0, 0.3);
+    padding: 10px;
+    border-radius: 5px;
+    justify-content: center;
+  }
+  
+  .log-container {
+    margin-top: 20px;
+    width: 100%;
+    max-width: 800px;
+    height: 100px;
+    overflow-y: auto;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 5px;
+    padding: 10px;
+    font-size: 14px;
+  }
+  
+  .log-entry {
+    margin-bottom: 3px;
+  }
+  
+  /* Player indicators */
+  .player-tag {
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    font-size: 10px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    z-index: 5;
+  }
+  
+  .tag-south { bottom: 5px; left: 5px; }
+  .tag-west { left: 5px; top: 5px; }
+  .tag-north { top: 5px; left: 5px; }
+  .tag-east { top: 5px; right: 5px; }
+  
+  /* Seat buttons */
+  .sit-button {
+    position: absolute;
+    font-size: 12px;
+    padding: 4px 8px;
+    background-color: #ff9800;
+    cursor: pointer;
+    z-index: 10;
+  }
+  
+  .sit-west { left: 10px; top: 10px; }
+  .sit-north { top: 10px; left: 50%; transform: translateX(-50%); }
+  .sit-east { right: 10px; top: 10px; }
+  
+  /* Player lists */
+  .player-lists {
+    display: flex;
+    justify-content: space-around;
+    margin: 20px 0;
+    width: 100%;
+    max-width: 800px;
+  }
+  
+  .room-controls {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .game-container {
+      height: 450px;
+    }
+    
+    .player-area {
+      width: 140px;
+      height: 110px;
+    }
+    
+    .card {
+      width: 35px;
+      height: 52px;
+      font-size: 14px;
+    }
+    
+    .card-symbol {
+      font-size: 18px;
+    }
+    
+    .card-value {
+      font-size: 12px;
+    }
+  }

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Turn-Based Game Room</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <script src="js/room.js"></script>
+  <style>
+    .table-container {
+      position: relative;
+      width: 300px;
+      height: 200px;
+      margin: 0 auto;
+      border: 2px solid black;
+    }
+    .table-button, .seat-label {
+      position: absolute;
+      text-align: center;
+    }
+    .table-button {
+      height: 30px;
+      width: 50px;
+    }
+    .seat-label {
+      width: 100px;
+      font-size: 14px;
+    }
+    #sit-button-1 { top: -50px; left: 50%; transform: translateX(-50%); }
+    #seat-label-1 { top: -80px; left: 50%; transform: translateX(-50%); }
+    #sit-button-2 { top: 50%; left: -100px; transform: translateY(-50%); }
+    #seat-label-2 { top: 50%; left: -180px; transform: translateY(-50%); }
+    #sit-button-3 { bottom: -50px; left: 50%; transform: translateX(-50%); }
+    #seat-label-3 { bottom: -80px; left: 50%; transform: translateX(-50%); }
+    #sit-button-4 { top: 50%; right: -100px; transform: translateY(-50%); }
+    #seat-label-4 { top: 50%; right: -180px; transform: translateY(-50%); }
+  </style>
+</head>
+<body>
+  <h1>Turn-Based Game Room</h1>
+  <button id="game-button">Wait for Your Turn</button>
+  <button id="invite-button">Invite</button>
+  <button id="auto-turn-button">Auto Turn</button>
+  <span id="auto-turn-status">Off</span>
+  <button id="stand-button">Stand</button>
+  <input type="hidden" id="player-name">
+  <div>
+    <h3>Players in the Room:</h3>
+    <ul id="player-list"></ul>
+  </div>
+  <div>
+    <h3>Players at the Table:</h3>
+    <ul id="seated-player-list"></ul>
+  </div>
+  <div class="table-container">
+    <h4 id="seat-label-1" class="seat-label">Player Name</h4>
+    <button id="sit-button-1" class="table-button">Sit</button>
+    <h4 id="seat-label-2" class="seat-label">Player Name</h4>
+    <button id="sit-button-2" class="table-button">Sit</button>
+    <h4 id="seat-label-3" class="seat-label">Player Name</h4>
+    <button id="sit-button-3" class="table-button">Sit</button>
+    <h4 id="seat-label-4" class="seat-label">Player Name</h4>
+    <button id="sit-button-4" class="table-button">Sit</button>
+  </div>
+  <div id="current-round-rolls"></div>
+  <div id="previous-round-rolls"></div>
+  <div id="scores"></div>
+</body>
+</html>

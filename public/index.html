@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Welcome to Turn-Based Game</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Welcome to Turn-Based Game</h1>
+  <button onclick="showRoomCreationForm()">Start a New Room</button>
+  <h2>Active Rooms</h2>
+  <table id="active-rooms-table">
+    <tr>
+      <th>Room ID</th>
+      <th>Room Status</th>
+      <th>Table Status</th>
+      <th>Join</th>
+    </tr>
+  </table>
+  
+  <div id="room-creation-form" style="display:none;">
+    <h3>Create a New Room</h3>
+    <form onsubmit="createRoom(event)">
+      <label for="game-type">Game Type:</label>
+      <select id="game-type" required>
+        <option value="blackjack">Blackjack</option>
+        <option value="poker">Poker</option>
+        <option value="euchre">Euchre</option>
+      </select><br>
+
+      <label for="max-players">Max Players in Room:</label>
+      <input type="range" id="max-players" name="max-players" min="4" max="10" value="4" oninput="this.nextElementSibling.value = this.value">
+      <output>4</output><br>
+
+      <label for="publicly-listed">Publicly Listed:</label>
+      <input type="checkbox" id="publicly-listed" name="publicly-listed"><br>
+
+      <label for="password">Password:</label>
+      <input type="password" id="password" name="password"><br>
+
+      <button type="submit">Create Room</button>
+    </form>
+  </div>
+
+  <script src="js/index.js"></script>
+</body>
+</html>
