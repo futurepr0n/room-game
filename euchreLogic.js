@@ -138,9 +138,12 @@ function startEuchreGame(io, roomId) {
   });
   
   // If it's a CPU's turn, handle it after a short delay
-  setTimeout(() => {
-    checkForCPUTurn(io, roomId);
-  }, 1000);
+  checkForCPUTurn(io, roomId);
+  
+  // Set additional checks with delays to ensure CPU turns happen
+  setTimeout(() => checkForCPUTurn(io, roomId), 1000);
+  setTimeout(() => checkForCPUTurn(io, roomId), 3000);
+  setTimeout(() => checkForCPUTurn(io, roomId), 5000);
 }
 
 function getFilteredGameState(euchreState, room) {
@@ -785,30 +788,31 @@ function cpuPlayCard(io, roomId, cpuId) {
   handleEuchrePlayCard(io, { id: cpuId, roomId }, cardIndex);
 }
 
+// Improve checkForCPUTurn to be more aggressive in detecting when CPU needs to take a turn
 function checkForCPUTurn(io, roomId) {
   const room = roomStates[roomId];
-  if (!room || !room.gameActive) {
-    console.log('Room not active, skipping CPU turn check');
-    return;
-  }
+  if (!room || !room.gameActive) return;
   
   const euchreState = room.euchre;
-  if (!euchreState) {
-    console.log('No euchre state found, skipping CPU turn check');
-    return;
+  if (!euchreState) return;
+  
+  // If no current player is set, try to recover by selecting the first seated player
+  if (!euchreState.currentPlayer && room.seatedPlayers.length > 0) {
+    console.log('No current player set, attempting recovery');
+    euchreState.currentPlayer = room.seatedPlayers[0];
   }
   
   const currentPlayerId = euchreState.currentPlayer;
-  if (!currentPlayerId) {
-    console.error('No current player set in euchreState');
-    return;
-  }
-
+  if (!currentPlayerId) return;
+  
+  // Check if it's a CPU player's turn
   if (currentPlayerId.startsWith('cpu_')) {
-    console.log(`Triggering CPU turn for ${currentPlayerId} (phase: ${euchreState.gamePhase})`);
-    handleCPUTurns(io, roomId);
-  } else {
-    console.log(`Current player ${currentPlayerId} is not a CPU - waiting for human action`);
+    console.log(`CPU turn detected for ${currentPlayerId} in phase ${euchreState.gamePhase}`);
+    
+    // Add small delay to make it seem like the CPU is "thinking"
+    setTimeout(() => {
+      handleCPUTurns(io, roomId);
+    }, 2000);
   }
 }
 

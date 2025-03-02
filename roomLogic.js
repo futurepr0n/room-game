@@ -1,6 +1,10 @@
 const roomStates = {};
 const activeRooms = {};
 const MAX_SEATS_PER_ROOM = 4;
+const getHumanPlayerCount = (room) => {
+  return room.players.filter(playerId => !playerId.startsWith('cpu_')).length;
+};
+
 
 function generateRoomId(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -43,12 +47,14 @@ function updateActiveRooms() {
   
   for (const roomId in roomStates) {
     const room = roomStates[roomId];
-    const playersCount = room.players.length;
-    const seatedCount = room.seatedPlayers.length;
+    // Count only human players for room status
+    const humanPlayersCount = getHumanPlayerCount(room);
+    const seatedCount = room.seatedPlayers.filter(id => !id.startsWith('cpu_')).length;
+    const cpuSeatedCount = room.seatedPlayers.filter(id => id.startsWith('cpu_')).length;
     
     activeRooms[roomId] = {
-      roomStatus: `Players: ${playersCount}/${room.maxPlayers}`,
-      tableStatus: `Seats: ${seatedCount}/${MAX_SEATS_PER_ROOM}`,
+      roomStatus: `Players: ${humanPlayersCount}/${room.maxPlayers}`,
+      tableStatus: `Seats: ${seatedCount + cpuSeatedCount}/${MAX_SEATS_PER_ROOM}`,
       gameType: room.gameType,
       publiclyListed: room.publiclyListed,
       gameActive: room.gameActive
@@ -77,15 +83,17 @@ function handleJoinRoom(io, socket, data) {
     return;
   }
 
-  if (room.players.length >= room.maxPlayers) {
+  // Only count human players against the room limit
+  const humanPlayerCount = getHumanPlayerCount(room);
+  if (humanPlayerCount >= room.maxPlayers) {
     socket.emit('roomFull', { message: 'The room is full' });
     return;
   }
 
+  // Rest of the function remains the same
   socket.join(roomId);
   socket.roomId = roomId;
   
-  // Check if this player is already in the room
   if (!room.players.includes(socket.id)) {
     room.players.push(socket.id);
   }
