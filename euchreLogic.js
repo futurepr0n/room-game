@@ -243,13 +243,16 @@ function handleEuchreBid(io, socket, bid) {
   
   // Make sure it's the current player's turn
   const playerId = socket.id || socket;
+  console.log('Current Player:', euchreState.currentPlayer, 'Acting Player:', playerId);
+  
   if (euchreState.currentPlayer !== playerId) {
-    console.log('Not the current player\'s turn:', playerId, 'vs', euchreState.currentPlayer);
+    console.error('Not the current player\'s turn:', playerId, 'vs', euchreState.currentPlayer);
     return;
   }
   
   const playerName = room.playerNames[playerId];
   console.log(`Player ${playerName} (${playerId}) is bidding:`, bid.action);
+  
   
   // Process bid based on game phase
   if (euchreState.gamePhase === 'bidding1') {
@@ -362,6 +365,12 @@ function handleEuchreBid(io, socket, bid) {
     gameState: getFilteredGameState(euchreState, room),
     roomState: room 
   });
+  
+  if (euchreState.currentPlayer && euchreState.currentPlayer.startsWith('cpu_')) {
+    setTimeout(() => {
+      handleCPUTurns(io, roomId);
+    }, 1500);
+  }
   
   // Check if next player is CPU
   setTimeout(() => {
@@ -607,22 +616,28 @@ function determineMakerTeam(euchreState, room) {
 }
 
 // Handle CPU actions
+// In euchreLogic.js - handleCPUTurns function:
 function handleCPUTurns(io, roomId) {
   const room = roomStates[roomId];
   if (!room || !room.gameActive || room.gameType !== 'euchre') {
-    console.log('Invalid room for CPU turn');
+    console.error('Invalid room for CPU turn');
     return;
   }
   
   const euchreState = room.euchre;
   if (!euchreState) {
-    console.log('No euchre state for CPU turn');
+    console.error('No euchre state for CPU turn');
     return;
   }
   
   // Check if it's a CPU's turn
   const currentPlayerId = euchreState.currentPlayer;
-  if (!currentPlayerId || !currentPlayerId.startsWith('cpu_')) {
+  if (!currentPlayerId) {
+    console.error('No current player set');
+    return;
+  }
+
+  if (!currentPlayerId.startsWith('cpu_')) {
     console.log('Not a CPU turn:', currentPlayerId);
     return;
   }
@@ -631,15 +646,19 @@ function handleCPUTurns(io, roomId) {
   
   // Delay the CPU move to make it feel more natural
   setTimeout(() => {
-    // Handle different game phases
-    if (euchreState.gamePhase === 'bidding1') {
-      cpuBid(io, roomId, currentPlayerId);
-    } 
-    else if (euchreState.gamePhase === 'bidding2') {
-      cpuBid(io, roomId, currentPlayerId);
-    } 
-    else if (euchreState.gamePhase === 'playing') {
-      cpuPlayCard(io, roomId, currentPlayerId);
+    try {
+      // Handle different game phases
+      if (euchreState.gamePhase === 'bidding1') {
+        cpuBid(io, roomId, currentPlayerId);
+      } 
+      else if (euchreState.gamePhase === 'bidding2') {
+        cpuBid(io, roomId, currentPlayerId);
+      } 
+      else if (euchreState.gamePhase === 'playing') {
+        cpuPlayCard(io, roomId, currentPlayerId);
+      }
+    } catch (error) {
+      console.error('Error in CPU turn:', error);
     }
   }, 1500);
 }
@@ -650,7 +669,7 @@ function cpuBid(io, roomId, cpuId) {
   const euchreState = room.euchre;
   
   if (!euchreState) {
-    console.log('No euchre state for CPU bid');
+    console.error('No euchre state for CPU bid');
     return;
   }
   
@@ -661,11 +680,11 @@ function cpuBid(io, roomId, cpuId) {
     if (Math.random() < 0.3) {
       // Order up
       console.log('CPU ordering up');
-      handleEuchreBid(io, { id: cpuId, roomId }, { action: 'orderUp', suit: euchreState.turnUpCard.suit });
+      handleEuchreBid(io, { id: cpuId, roomId: roomId }, { action: 'orderUp', suit: euchreState.turnUpCard.suit });
     } else {
       // Pass
       console.log('CPU passing');
-      handleEuchreBid(io, { id: cpuId, roomId }, { action: 'pass' });
+      handleEuchreBid(io, { id: cpuId, roomId: roomId }, { action: 'pass' });
     }
   } 
   else if (euchreState.gamePhase === 'bidding2') {
@@ -678,11 +697,11 @@ function cpuBid(io, roomId, cpuId) {
       const selectedSuit = availableSuits[Math.floor(Math.random() * availableSuits.length)];
       
       console.log('CPU calling suit:', selectedSuit);
-      handleEuchreBid(io, { id: cpuId, roomId }, { action: 'callSuit', suit: selectedSuit });
+      handleEuchreBid(io, { id: cpuId, roomId: roomId }, { action: 'callSuit', suit: selectedSuit });
     } else {
       // Pass
       console.log('CPU passing in second round');
-      handleEuchreBid(io, { id: cpuId, roomId }, { action: 'pass' });
+      handleEuchreBid(io, { id: cpuId, roomId: roomId }, { action: 'pass' });
     }
   }
 }
