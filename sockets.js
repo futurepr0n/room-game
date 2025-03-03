@@ -1,6 +1,6 @@
-const { handleJoinRoom, handleSitAtTable, handleStandFromTable, handleDisconnect, getActiveRooms, createRoom, roomStates, updateActiveRooms } = require('./roomLogic');
+const { handleSitAtTable, handleStandFromTable, handleDisconnect, getActiveRooms, createRoom, roomStates, updateActiveRooms } = require('./roomLogic');
 const { startGame, rollDice } = require('./gameLogic');
-const { startEuchreGame, handleEuchreBid, handleEuchrePlayCard } = require('./euchreLogic');
+const { startEuchreGame, handleEuchreBid, handleEuchrePlayCard, getFilteredGameState, broadcastGameState } = require('./euchreLogic');
 
 function setupSocket(io) {
   io.on('connection', (socket) => {
@@ -20,14 +20,61 @@ function setupSocket(io) {
       io.emit('updateActiveRooms', getActiveRooms());
     });
 
+    // Modified joinRoom handler with improved spectator support
     socket.on('joinRoom', (data) => {
       console.log('User joining room:', data.roomId);
-      handleJoinRoom(io, socket, data);
       
-      // Make sure the roomId is attached to the socket
-      socket.roomId = data.roomId;
+      const { roomId, playerName, password } = data;
+      const room = roomStates[roomId];
+      
+      if (!room) {
+        socket.emit('roomNotFound', { message: 'Room not found' });
+        return;
+      }
+
+      if (room.password && room.password !== password) {
+        socket.emit('wrongPassword', { message: 'Incorrect password' });
+        return;
+      }
+
+      // Check for space in the room (only count human players against limit)
+      const humanPlayers = room.players.filter(id => !id.startsWith('cpu_'));
+      if (humanPlayers.length >= room.maxPlayers && !room.players.includes(socket.id)) {
+        socket.emit('roomFull', { message: 'The room is full' });
+        return;
+      }
+      
+      // Join the socket to the room
+      socket.join(roomId);
+      socket.roomId = roomId;
+      
+      // Add player to the room if not already there
+      if (!room.players.includes(socket.id)) {
+        room.players.push(socket.id);
+      }
+      
+      // Set player name
+      room.playerNames[socket.id] = playerName;
+      
+      // Broadcast room update to all players
+      io.to(roomId).emit('updateRoom', room);
+      
+      // If a game is in progress, send the current game state to this player
+      if (room.gameActive) {
+        if (room.gameType === 'euchre' && room.euchre) {
+          console.log('Sending euchre game state to new player:', socket.id);
+          socket.emit('euchreGameState', {
+            gameState: getFilteredGameState(room.euchre, room),
+            roomState: room
+          });
+        } else {
+          // For other game types
+          socket.emit('updateRoom', room);
+        }
+      }
       
       // Update active rooms after a player joins
+      updateActiveRooms();
       io.emit('updateActiveRooms', getActiveRooms());
     });
     
@@ -89,7 +136,7 @@ function setupSocket(io) {
       }
     });
     
-    // New helper function to ensure all seats are filled
+    // Helper function to ensure all seats are filled - keeping your original implementation
     function ensureAllSeatsAreFilled(roomId) {
       const room = roomStates[roomId];
       if (!room) return;
@@ -158,9 +205,9 @@ function setupSocket(io) {
       io.emit('updateActiveRooms', getActiveRooms());
     });
     
-    // Euchre specific events
+    // Euchre specific events with improved handling
     socket.on('euchreBid', (bid) => {
-      console.log('User making bid in room:', socket.roomId, 'bid:', bid);
+      console.log('Received euchre bid from', socket.id, 'bid:', bid);
       handleEuchreBid(io, socket, bid);
       
       // Update active rooms after game state changes
@@ -168,7 +215,7 @@ function setupSocket(io) {
     });
     
     socket.on('euchrePlayCard', (cardIndex) => {
-      console.log('User playing card in room:', socket.roomId, 'card index:', cardIndex);
+      console.log('Received euchre card play from', socket.id, 'card index:', cardIndex);
       handleEuchrePlayCard(io, socket, cardIndex);
       
       // Update active rooms after game state changes
