@@ -79,6 +79,19 @@ document.addEventListener('DOMContentLoaded', function() {
     dealBtn.addEventListener('click', function() {
       console.log('Deal button clicked - starting game');
       socket.emit('startGame');
+      
+      // Show a loading indicator
+      dealBtn.disabled = true;
+      dealBtn.textContent = 'Starting...';
+      
+      // Reset after a few seconds if no response
+      setTimeout(() => {
+        if (dealBtn.textContent === 'Starting...') {
+          dealBtn.textContent = 'Deal';
+          dealBtn.disabled = false;
+        }
+      }, 5000);
+      
       logEvent('Starting game...');
     });
     
@@ -157,20 +170,62 @@ document.addEventListener('DOMContentLoaded', function() {
       // Ensure we have player ID
       myPlayerId = socket.id;
       
+      // Show spectator mode indicator if not seated
+      const isSpectator = !roomState.seatedPlayers.includes(myPlayerId);
+      if (isSpectator) {
+        // Add a spectator indicator if it doesn't exist
+        if (!document.getElementById('spectator-indicator')) {
+          const spectatorIndicator = document.createElement('div');
+          spectatorIndicator.id = 'spectator-indicator';
+          spectatorIndicator.className = 'spectator-indicator';
+          spectatorIndicator.textContent = 'Spectator Mode';
+          spectatorIndicator.style.position = 'absolute';
+          spectatorIndicator.style.top = '10px';
+          spectatorIndicator.style.left = '10px';
+          spectatorIndicator.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+          spectatorIndicator.style.color = 'white';
+          spectatorIndicator.style.padding = '5px 10px';
+          spectatorIndicator.style.borderRadius = '5px';
+          spectatorIndicator.style.zIndex = '1000';
+          document.querySelector('.game-container').appendChild(spectatorIndicator);
+        }
+      } else {
+        // Remove spectator indicator if seated
+        const indicator = document.getElementById('spectator-indicator');
+        if (indicator) indicator.remove();
+      }
+      
       // Display any game log messages
       if (gameState.gameLog && gameState.gameLog.length > 0) {
-        // Only display new messages
-        const lastMessage = gameLog.lastElementChild ? 
-                           gameLog.lastElementChild.textContent : '';
+        // Find all new messages
+        const lastMessageIndex = getLastDisplayedMessageIndex();
         
-        if (gameState.gameLog[gameState.gameLog.length - 1] !== lastMessage) {
-          logEvent(gameState.gameLog[gameState.gameLog.length - 1]);
+        for (let i = lastMessageIndex + 1; i < gameState.gameLog.length; i++) {
+          logEvent(gameState.gameLog[i]);
         }
       }
       
       // Render the game state
       renderGameState();
     });
+
+    // Helper function to find the last displayed message index
+    function getLastDisplayedMessageIndex() {
+      if (!gameState || !gameState.gameLog || !gameState.gameLog.length) return -1;
+      
+      const logEntries = gameLog.querySelectorAll('.log-entry');
+      if (!logEntries.length) return -1;
+      
+      const lastDisplayedMessage = logEntries[logEntries.length - 1].textContent;
+      
+      for (let i = gameState.gameLog.length - 1; i >= 0; i--) {
+        if (gameState.gameLog[i] === lastDisplayedMessage) {
+          return i;
+        }
+      }
+      
+      return -1;
+    }
     
     // Handle standard room events
     socket.on('roomFull', function(data) {
@@ -188,6 +243,168 @@ document.addEventListener('DOMContentLoaded', function() {
       window.location.href = '/';
     });
   }
+
+  function updateGameControls() {
+    // Clear all control displays
+    biddingControls.style.display = 'none';
+    suitSelection.style.display = 'none';
+    newGameBtn.style.display = 'none';
+    dealBtn.style.display = 'none';
+    
+    // Only proceed if we have game state
+    if (!gameState) return;
+    
+    // Check if user is a spectator
+    const isSpectator = !roomState.seatedPlayers.includes(myPlayerId);
+    
+    // Update trump indicator
+    if (gameState.trumpSuit) {
+      trumpIndicator.style.display = 'block';
+      const suitSymbols = {'hearts': '♥', 'diamonds': '♦', 'clubs': '♣', 'spades': '♠'};
+      const suitSymbol = suitSymbols[gameState.trumpSuit] || '';
+      trumpSuitText.textContent = `${gameState.trumpSuit.charAt(0).toUpperCase() + gameState.trumpSuit.slice(1)} ${suitSymbol}`;
+      
+      // Add color class for red suits
+      if (gameState.trumpSuit === 'hearts' || gameState.trumpSuit === 'diamonds') {
+        trumpSuitText.className = 'red';
+      } else {
+        trumpSuitText.className = '';
+      }
+    } else {
+      trumpIndicator.style.display = 'none';
+    }
+    
+    // Handle different game phases
+    if (gameState.gamePhase === 'idle') {
+      infoText.textContent = 'Welcome to Euchre! Click Deal to start.';
+      
+      if (!isSpectator) {
+        // Only show deal button to seated players
+        dealBtn.style.display = 'inline-block';
+        dealBtn.disabled = roomState.seatedPlayers.length < 4;
+      }
+    } 
+    else if (gameState.gamePhase === 'bidding1') {
+      // For spectators, always show what's happening
+      if (isSpectator) {
+        const currentPlayerName = roomState.playerNames[gameState.currentPlayer] || 'Unknown';
+        infoText.textContent = `${currentPlayerName} is deciding whether to order up ${gameState.turnUpCard.suit}...`;
+      }
+      // For active players
+      else if (gameState.currentPlayer === myPlayerId) {
+        infoText.textContent = `Do you want to order up ${gameState.turnUpCard.suit}?`;
+        biddingControls.style.display = 'block';
+      } else {
+        // Another player's turn
+        const currentPlayerName = roomState.playerNames[gameState.currentPlayer] || 'Unknown';
+        infoText.textContent = `${currentPlayerName} is deciding...`;
+      }
+    } 
+    else if (gameState.gamePhase === 'bidding2') {
+      // For spectators
+      if (isSpectator) {
+        const currentPlayerName = roomState.playerNames[gameState.currentPlayer] || 'Unknown';
+        infoText.textContent = `${currentPlayerName} is selecting a trump suit...`;
+      }
+      // For active players
+      else if (gameState.currentPlayer === myPlayerId) {
+        infoText.textContent = `Select a trump suit (different from ${gameState.turnUpCard.suit})`;
+        suitSelection.style.display = 'block';
+        
+        // Disable the suit that was turned down
+        document.querySelectorAll('.suit-btn').forEach(button => {
+          if (button.dataset.suit === gameState.turnUpCard.suit) {
+            button.disabled = true;
+          } else {
+            button.disabled = false;
+          }
+        });
+      } else {
+        // Another player's turn
+        const currentPlayerName = roomState.playerNames[gameState.currentPlayer] || 'Unknown';
+        infoText.textContent = `${currentPlayerName} is selecting a trump suit...`;
+      }
+    } 
+    else if (gameState.gamePhase === 'playing') {
+      // For spectators
+      if (isSpectator) {
+        const currentPlayerName = roomState.playerNames[gameState.currentPlayer] || 'Unknown';
+        infoText.textContent = `Waiting for ${currentPlayerName} to play...`;
+      }
+      // For active players
+      else if (gameState.currentPlayer === myPlayerId) {
+        infoText.textContent = 'Your turn. Play a card.';
+      } else {
+        // Another player's turn
+        const currentPlayerName = roomState.playerNames[gameState.currentPlayer] || 'Unknown';
+        infoText.textContent = `Waiting for ${currentPlayerName} to play...`;
+      }
+    } 
+    else if (gameState.gamePhase === 'gameover') {
+      const winningTeam = gameState.teamScores[0] > gameState.teamScores[1] ? 1 : 2;
+      infoText.textContent = `Game over! Team ${winningTeam} wins!`;
+      
+      if (!isSpectator) {
+        newGameBtn.style.display = 'inline-block';
+      }
+    }
+    
+    // Remove any existing turn indicators
+    document.querySelectorAll('.turn-indicator').forEach(el => el.remove());
+    
+    // Add turn indicator for current player
+    if (gameState.currentPlayer) {
+      // Find the seat number for the current player
+      let currentSeat = null;
+      for (const [seatNumber, playerId] of Object.entries(roomState.playerSeats)) {
+        if (playerId === gameState.currentPlayer) {
+          currentSeat = parseInt(seatNumber);
+          break;
+        }
+      }
+      
+      if (currentSeat) {
+        // Map seat number to position
+        let position;
+        switch (currentSeat) {
+          case 1: position = 'north'; break;
+          case 2: position = 'west'; break;
+          case 3: position = 'south'; break;
+          case 4: position = 'east'; break;
+        }
+        
+        // Create and position the indicator
+        const indicator = document.createElement('div');
+        indicator.className = 'turn-indicator';
+        indicator.innerHTML = '🔄';
+        
+        const playerArea = document.querySelector(`.player-${position}`);
+        if (playerArea) {
+          playerArea.appendChild(indicator);
+          
+          // Position based on the player's area
+          if (position === 'south') {
+            indicator.style.bottom = '5px';
+            indicator.style.left = '50%';
+            indicator.style.transform = 'translateX(-50%)';
+          } else if (position === 'north') {
+            indicator.style.top = '5px';
+            indicator.style.left = '50%';
+            indicator.style.transform = 'translateX(-50%)';
+          } else if (position === 'west') {
+            indicator.style.left = '5px';
+            indicator.style.top = '50%';
+            indicator.style.transform = 'translateY(-50%)';
+          } else if (position === 'east') {
+            indicator.style.right = '5px';
+            indicator.style.top = '50%';
+            indicator.style.transform = 'translateY(-50%)';
+          }
+        }
+      }
+    }
+  }
+  
   
   // Helper functions for the UI
   function updatePlayerLists(room) {

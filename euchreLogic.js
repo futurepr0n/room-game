@@ -87,6 +87,29 @@ function fillEmptySeatsWithCPUs(roomId) {
   return room;
 }
 
+function broadcastGameState(io, roomId) {
+  const room = roomStates[roomId];
+  if (!room) return;
+  
+  const euchreState = room.euchre;
+  if (!euchreState) return;
+  
+  console.log('Broadcasting game state to all players in room', roomId);
+  
+  // Create the filtered game state
+  const filteredState = getFilteredGameState(euchreState, room);
+  
+  // Send to all players in the room, including spectators
+  io.to(roomId).emit('euchreGameState', { 
+    gameState: filteredState,
+    roomState: room
+  });
+}
+
+
+
+
+
 function startEuchreGame(io, roomId) {
   const room = roomStates[roomId];
   if (!room) {
@@ -130,6 +153,10 @@ function startEuchreGame(io, roomId) {
   io.emit('updateActiveRooms', updateActiveRooms());
   
   console.log('Emitting initial game state, current player:', euchreState.currentPlayer);
+
+  
+  // Broadcast the game state to all players, including spectators
+  broadcastGameState(io, roomId);
   
   // Emit the initial game state to all players
   io.to(roomId).emit('euchreGameState', { 
@@ -300,6 +327,13 @@ function handleEuchreBid(io, socket, bid) {
       // Player passes
       euchreState.bidsMade++;
       addToGameLog(euchreState, `${playerName} passed`);
+
+      // Determine next player immediately when passing
+      const nextPlayerIndex = (room.seatedPlayers.indexOf(playerId) + 1) % room.seatedPlayers.length;
+      const nextPlayerId = room.seatedPlayers[nextPlayerIndex];
+      euchreState.currentPlayer = nextPlayerId;
+      
+      console.log(`Next player after pass: ${nextPlayerId} (${room.playerNames[nextPlayerId]})`);
       
       if (euchreState.bidsMade >= 4) {
         // All players passed, move to second round of bidding
@@ -340,6 +374,13 @@ function handleEuchreBid(io, socket, bid) {
       // Player passes
       euchreState.bidsMade++;
       addToGameLog(euchreState, `${playerName} passed`);
+
+      // Determine next player immediately when passing
+      const nextPlayerIndex = (room.seatedPlayers.indexOf(playerId) + 1) % room.seatedPlayers.length;
+      const nextPlayerId = room.seatedPlayers[nextPlayerIndex];
+      euchreState.currentPlayer = nextPlayerId;
+      
+      console.log(`Next player after pass: ${nextPlayerId} (${room.playerNames[nextPlayerId]})`);
       
       if (euchreState.bidsMade >= 4) {
         // All players passed again, redeal
@@ -379,6 +420,7 @@ function handleEuchreBid(io, socket, bid) {
   });
   
   if (euchreState.currentPlayer && euchreState.currentPlayer.startsWith('cpu_')) {
+    console.log(`Immediately triggering CPU turn for ${euchreState.currentPlayer}`);
     setTimeout(() => {
       handleCPUTurns(io, roomId);
     }, 1500);
@@ -690,38 +732,49 @@ function cpuBid(io, roomId, cpuId) {
   
   console.log(`CPU ${cpuId} bidding, game phase: ${euchreState.gamePhase}`);
   
+  // Introduce more varied CPU behavior based on the CPU's "personality"
+  // Extract the CPU number from the ID to make it consistent
+  const cpuNum = parseInt(cpuId.split('_').pop()) || 1;
+  
   if (euchreState.gamePhase === 'bidding1') {
-    // More aggressive CPU bidding (40% chance to order up in first round)
-    if (Math.random() < 0.4) {
+    // Use the CPU number to determine bid aggressiveness (more predictable)
+    const bidThreshold = 0.3 + (cpuNum * 0.1); // 0.4, 0.5, 0.6 for CPUs 1, 2, 3
+    
+    if (Math.random() < bidThreshold) {
       // Order up
-      console.log(`CPU ${cpuId} ordering up ${euchreState.turnUpCard.suit}`);
+      console.log(`CPU ${cpuId} ordering up ${euchreState.turnUpCard.suit} (threshold: ${bidThreshold})`);
       handleEuchreBid(io, { id: cpuId, roomId: roomId }, { 
         action: 'orderUp', 
         suit: euchreState.turnUpCard.suit 
       });
     } else {
       // Pass
-      console.log(`CPU ${cpuId} passing`);
+      console.log(`CPU ${cpuId} passing (threshold: ${bidThreshold})`);
       handleEuchreBid(io, { id: cpuId, roomId: roomId }, { action: 'pass' });
     }
   } 
   else if (euchreState.gamePhase === 'bidding2') {
-    // 50% chance to call a suit in second round (more aggressive)
-    if (Math.random() < 0.5) {
+    // More likely to call in second round
+    const bidThreshold = 0.4 + (cpuNum * 0.1); // 0.5, 0.6, 0.7 for CPUs 1, 2, 3
+    
+    if (Math.random() < bidThreshold) {
       // Select a random suit that isn't the turn-up suit
       const availableSuits = ['hearts', 'diamonds', 'clubs', 'spades'].filter(s => 
         s !== euchreState.turnUpCard.suit
       );
-      const selectedSuit = availableSuits[Math.floor(Math.random() * availableSuits.length)];
       
-      console.log(`CPU ${cpuId} calling suit: ${selectedSuit}`);
+      // Make the selection more deterministic based on CPU ID
+      const suitIndex = (cpuNum + euchreState.bidsMade) % availableSuits.length;
+      const selectedSuit = availableSuits[suitIndex];
+      
+      console.log(`CPU ${cpuId} calling suit: ${selectedSuit} (threshold: ${bidThreshold})`);
       handleEuchreBid(io, { id: cpuId, roomId: roomId }, { 
         action: 'callSuit', 
         suit: selectedSuit 
       });
     } else {
       // Pass
-      console.log(`CPU ${cpuId} passing in second round`);
+      console.log(`CPU ${cpuId} passing in second round (threshold: ${bidThreshold})`);
       handleEuchreBid(io, { id: cpuId, roomId: roomId }, { action: 'pass' });
     }
   }
@@ -788,6 +841,53 @@ function cpuPlayCard(io, roomId, cpuId) {
   handleEuchrePlayCard(io, { id: cpuId, roomId }, cardIndex);
 }
 
+function handleJoinRoom(io, socket, data) {
+  const { roomId, playerName, password } = data;
+  const room = roomStates[roomId];
+  
+  if (!room) {
+    socket.emit('roomNotFound', { message: 'Room not found' });
+    return;
+  }
+
+  if (room.password && room.password !== password) {
+    socket.emit('wrongPassword', { message: 'Incorrect password' });
+    return;
+  }
+
+  // Only count human players against the room limit
+  const humanPlayerCount = getHumanPlayerCount(room);
+  if (humanPlayerCount >= room.maxPlayers) {
+    socket.emit('roomFull', { message: 'The room is full' });
+    return;
+  }
+
+  socket.join(roomId);
+  socket.roomId = roomId;
+  
+  if (!room.players.includes(socket.id)) {
+    room.players.push(socket.id);
+  }
+  
+  room.playerNames[socket.id] = playerName;
+
+  // Update room state for all clients
+  io.to(roomId).emit('updateRoom', room);
+  
+  // If a game is in progress, send the current game state to the new player
+  if (room.gameActive && room.euchre) {
+    console.log('Sending current game state to new player:', socket.id);
+    socket.emit('euchreGameState', { 
+      gameState: getFilteredGameState(room.euchre, room),
+      roomState: room
+    });
+  }
+  
+  updateActiveRooms();
+  io.emit('updateActiveRooms', getActiveRooms());
+}
+
+
 // Improve checkForCPUTurn to be more aggressive in detecting when CPU needs to take a turn
 function checkForCPUTurn(io, roomId) {
   const room = roomStates[roomId];
@@ -800,6 +900,12 @@ function checkForCPUTurn(io, roomId) {
   if (!euchreState.currentPlayer && room.seatedPlayers.length > 0) {
     console.log('No current player set, attempting recovery');
     euchreState.currentPlayer = room.seatedPlayers[0];
+    
+    // Update all clients with the recovery action
+    io.to(roomId).emit('euchreGameState', { 
+      gameState: getFilteredGameState(euchreState, room),
+      roomState: room 
+    });
   }
   
   const currentPlayerId = euchreState.currentPlayer;
@@ -809,13 +915,25 @@ function checkForCPUTurn(io, roomId) {
   if (currentPlayerId.startsWith('cpu_')) {
     console.log(`CPU turn detected for ${currentPlayerId} in phase ${euchreState.gamePhase}`);
     
-    // Add small delay to make it seem like the CPU is "thinking"
-    setTimeout(() => {
-      handleCPUTurns(io, roomId);
-    }, 2000);
+    // Prevent multiple CPU turns being triggered at once
+    // Add a timestamp to the CPU player to track when the last turn was triggered
+    const now = Date.now();
+    const lastTurnTime = room.cpuLastTurnTime?.[currentPlayerId] || 0;
+    
+    if (now - lastTurnTime > 2000) { // Only trigger if it's been more than 2 seconds
+      // Track the last turn time
+      if (!room.cpuLastTurnTime) room.cpuLastTurnTime = {};
+      room.cpuLastTurnTime[currentPlayerId] = now;
+      
+      // Add small delay to make it seem like the CPU is "thinking"
+      setTimeout(() => {
+        handleCPUTurns(io, roomId);
+      }, 1500);
+    } else {
+      console.log(`Skipping duplicate CPU turn for ${currentPlayerId}, last turn was ${now - lastTurnTime}ms ago`);
+    }
   }
 }
-
 
 module.exports = {
   startEuchreGame,
