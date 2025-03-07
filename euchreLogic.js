@@ -209,10 +209,17 @@ function getFilteredGameState(euchreState, room) {
   if (!filteredState.teamScores) filteredState.teamScores = [0, 0];
   if (!filteredState.teamTricks) filteredState.teamTricks = [0, 0];
   
-  // Make sure all seated players have hands defined (even if empty)
-  for (const playerId of room.seatedPlayers) {
-    if (!filteredState.hands[playerId]) {
+  // Make sure all players in the room have context, not just seated players
+  for (const playerId of room.players) {
+    // For non-seated players, provide limited visibility
+    if (!room.seatedPlayers.includes(playerId)) {
+      // Spectators can see public game state
       filteredState.hands[playerId] = [];
+    } else {
+      // Seated players get their own hand
+      if (!filteredState.hands[playerId]) {
+        filteredState.hands[playerId] = [];
+      }
     }
     
     // Initialize tricks won for each player
@@ -1216,6 +1223,61 @@ function processCompletedTrick(io, roomId) {
   }
 }
 
+function processCompletedTrick(io, roomId) {
+  const room = roomStates[roomId];
+  if (!room) return;
+  
+  const euchreState = room.euchre;
+  if (!euchreState) return;
+  
+  // Determine the winning play
+  const winningPlay = getCurrentWinningPlay(euchreState);
+  const winningPlayer = winningPlay.player;
+  
+  console.log('Trick winner:', winningPlayer, room.playerNames[winningPlayer]);
+  
+  // Update trick count for the winner
+  if (!euchreState.tricksWon[winningPlayer]) {
+    euchreState.tricksWon[winningPlayer] = 0;
+  }
+  euchreState.tricksWon[winningPlayer]++;
+  
+  // Add to game log
+  addToGameLog(euchreState, `${room.playerNames[winningPlayer]} won the trick`);
+  
+  // Broadcast updated state to show trick winner
+  broadcastGameState(io, roomId);
+  
+  // Check if hand is complete (all cards played)
+  const handComplete = Object.values(euchreState.hands).every(hand => hand.length === 0);
+  
+  if (handComplete) {
+    // Add a delay before scoring to allow players to see the final trick
+    setTimeout(() => {
+      processHandScoring(io, roomId);
+    }, 3000); // 3-second delay
+  } else {
+    // Add a delay before starting the next trick
+    setTimeout(() => {
+      // Start new trick with winner leading
+      euchreState.currentPlayer = winningPlayer;
+      euchreState.currentTrick = [];
+      euchreState.leadSuit = null; // Reset lead suit
+      
+      // Broadcast updated state
+      broadcastGameState(io, roomId);
+      
+      // Check if next player is CPU
+      if (winningPlayer.startsWith('cpu_')) {
+        // Schedule CPU play after a delay
+        setTimeout(() => {
+          handleCPUCardPlay(io, roomId, winningPlayer);
+        }, 1500);
+      }
+    }, 2000); // 2-second delay between tricks
+  }
+}
+
 // Process scoring after a hand is complete
 function processHandScoring(io, roomId) {
   const room = roomStates[roomId];
@@ -1248,10 +1310,12 @@ function processHandScoring(io, roomId) {
   
   // Determine which team made the bid
   let makerTeam = 0; // 0=team1, 1=team2
+  let makerName = 'Unknown';
   for (const [seatNum, playerId] of Object.entries(room.playerSeats)) {
     if (playerId === euchreState.maker) {
       const seatNumber = parseInt(seatNum);
       makerTeam = (seatNumber === 1 || seatNumber === 3) ? 0 : 1;
+      makerName = room.playerNames[playerId];
       break;
     }
   }
@@ -1266,27 +1330,27 @@ function processHandScoring(io, roomId) {
     if (team1Tricks >= 3) {
       if (team1Tricks === 5) {
         team1Score = 2; // All 5 tricks = 2 points
-        addToGameLog(euchreState, 'Team 1 made a march! +2 points');
+        addToGameLog(euchreState, `Team 1 (led by ${makerName}) made a march! +2 points`);
       } else {
         team1Score = 1; // 3-4 tricks = 1 point
-        addToGameLog(euchreState, 'Team 1 made their bid. +1 point');
+        addToGameLog(euchreState, `Team 1 (led by ${makerName}) made their bid. +1 point`);
       }
     } else {
       team2Score = 2; // Euchre (failed to make bid) = 2 points for opponents
-      addToGameLog(euchreState, 'Team 1 was euchred! Team 2 gets +2 points');
+      addToGameLog(euchreState, `Team 1 was euchred! Team 2 gets +2 points. Maker: ${makerName}`);
     }
   } else { // Team 2 made the bid
     if (team2Tricks >= 3) {
       if (team2Tricks === 5) {
         team2Score = 2; // All 5 tricks = 2 points
-        addToGameLog(euchreState, 'Team 2 made a march! +2 points');
+        addToGameLog(euchreState, `Team 2 (led by ${makerName}) made a march! +2 points`);
       } else {
         team2Score = 1; // 3-4 tricks = 1 point
-        addToGameLog(euchreState, 'Team 2 made their bid. +1 point');
+        addToGameLog(euchreState, `Team 2 (led by ${makerName}) made their bid. +1 point`);
       }
     } else {
       team1Score = 2; // Euchre (failed to make bid) = 2 points for opponents
-      addToGameLog(euchreState, 'Team 2 was euchred! Team 1 gets +2 points');
+      addToGameLog(euchreState, `Team 2 was euchred! Team 1 gets +2 points. Maker: ${makerName}`);
     }
   }
   
@@ -1296,6 +1360,9 @@ function processHandScoring(io, roomId) {
   
   console.log('Updated scores - Team 1:', euchreState.teamScores[0], 'Team 2:', euchreState.teamScores[1]);
   
+  // Add a log showing current scores
+  addToGameLog(euchreState, `Current Scores - Team 1: ${euchreState.teamScores[0]}, Team 2: ${euchreState.teamScores[1]}`);
+  
   // Check if game is over (first to 10 points)
   if (euchreState.teamScores[0] >= 10 || euchreState.teamScores[1] >= 10) {
     // Game over
@@ -1303,8 +1370,17 @@ function processHandScoring(io, roomId) {
     const winningTeam = euchreState.teamScores[0] >= 10 ? 'Team 1' : 'Team 2';
     addToGameLog(euchreState, `Game over! ${winningTeam} wins!`);
   } else {
-    // Prepare for next hand
-    prepareNextHand(euchreState, room);
+    // Prepare for next hand with a delay to show final state
+    setTimeout(() => {
+      prepareNextHand(euchreState, room);
+      
+      // Broadcast updated state
+      broadcastGameState(io, roomId);
+    }, 3000); // 3-second delay to show final scores
+    
+    // Broadcast current final state before preparing next hand
+    broadcastGameState(io, roomId);
+    return;
   }
   
   // Broadcast final state
