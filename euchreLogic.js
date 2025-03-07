@@ -273,17 +273,35 @@ function startBidding(euchreState, room) {
   console.log('Starting bidding...');
   console.log('Dealer position:', euchreState.dealerPosition);
   console.log('Seated players:', room.seatedPlayers);
+  console.log('Player seats:', room.playerSeats);
   
-  // First player after dealer starts bidding
-  const starterIndex = (euchreState.dealerPosition + 1) % room.seatedPlayers.length;
-  euchreState.currentPlayer = room.seatedPlayers[starterIndex];
+  // CRITICAL FIX: Use seat numbers instead of array indices
+  // Dealer is at position 0-3, but seats are numbered 1-4
+  const dealerSeatPosition = euchreState.dealerPosition;
+  const firstSeatNumber = (dealerSeatPosition % 4) + 1; // Convert 0-3 to 1-4, wrapping around
   
-  console.log('Starter index:', starterIndex);
-  console.log('Starting bidding, first player:', euchreState.currentPlayer, '(', room.playerNames[euchreState.currentPlayer], ')');
+  console.log('Dealer seat position (0-3):', dealerSeatPosition);
+  console.log('First bidder seat number (1-4):', firstSeatNumber);
   
-  // Add a log message to the game
-  addToGameLog(euchreState, `Bidding begins. ${room.playerNames[euchreState.currentPlayer]} goes first.`);
+  // Get the player at the first seat
+  const firstPlayerId = room.playerSeats[firstSeatNumber];
+  
+  if (firstPlayerId) {
+    euchreState.currentPlayer = firstPlayerId;
+    console.log('Starting bidding, first player:', firstPlayerId, '(', room.playerNames[firstPlayerId], ')');
+    
+    // Add a log message to the game
+    addToGameLog(euchreState, `Bidding begins. ${room.playerNames[firstPlayerId]} goes first.`);
+  } else {
+    console.error('Could not find player at first seat:', firstSeatNumber);
+    // Fallback to using array index method
+    const starterIndex = (euchreState.dealerPosition + 1) % room.seatedPlayers.length;
+    euchreState.currentPlayer = room.seatedPlayers[starterIndex];
+    console.log('Fallback: Starting player set to:', euchreState.currentPlayer);
+  }
 }
+
+
 function addToGameLog(euchreState, message) {
   if (euchreState.gameLog.length > 20) {
     euchreState.gameLog.shift(); // Keep log at reasonable size
@@ -315,7 +333,9 @@ function handleEuchreBid(io, socket, bid) {
     console.log('************** BID INFO **************');
     console.log('Current Player:', euchreState.currentPlayer);
     console.log('Acting Player:', playerId);
+    console.log('Room ID:', roomId);
     console.log('Seated Players:', room.seatedPlayers);
+    console.log('Player seats:', room.playerSeats);
     console.log('Is player seated?', room.seatedPlayers.includes(playerId));
     console.log('Game Phase:', euchreState.gamePhase);
     console.log('Bids Made:', euchreState.bidsMade);
@@ -369,32 +389,35 @@ function handleEuchreBid(io, socket, bid) {
         euchreState.bidsMade++;
         addToGameLog(euchreState, `${playerName} passed`);
 
-        // Move to next player
-        const currentIndex = room.seatedPlayers.indexOf(playerId);
-        console.log('Current index in seatedPlayers:', currentIndex);
+        // Move to next player - CRITICAL FIX HERE
+        // We're using playerSeats to find the next seat number, not the current player's position in seatedPlayers
         
-        if (currentIndex !== -1) {
-          const nextPlayerIndex = (currentIndex + 1) % room.seatedPlayers.length;
-          const nextPlayerId = room.seatedPlayers[nextPlayerIndex];
-          euchreState.currentPlayer = nextPlayerId;
-          console.log('Setting current player to:', nextPlayerId, '(', room.playerNames[nextPlayerId], ')');
-        } else {
-          console.error('Player not found in seatedPlayers:', playerId);
-          console.log('seatedPlayers:', room.seatedPlayers);
-          
-          // Try recovery by finding player in playerSeats
-          const playerSeatNum = Object.keys(room.playerSeats).find(seat => room.playerSeats[seat] === playerId);
-          console.log('Player seat number from playerSeats:', playerSeatNum);
-          
-          if (playerSeatNum) {
-            // Find next seat
-            const nextSeatNum = (parseInt(playerSeatNum) % 4) + 1;
-            const nextPlayerId = room.playerSeats[nextSeatNum];
-            if (nextPlayerId) {
-              euchreState.currentPlayer = nextPlayerId;
-              console.log('Recovery: Setting current player to:', nextPlayerId, '(', room.playerNames[nextPlayerId], ')');
-            }
+        // First find the current player's seat number
+        let currentSeatNum = null;
+        for (const [seatNum, id] of Object.entries(room.playerSeats)) {
+          if (id === playerId) {
+            currentSeatNum = parseInt(seatNum);
+            break;
           }
+        }
+        
+        console.log('Current player seat number:', currentSeatNum);
+        
+        if (currentSeatNum) {
+          // Calculate next seat number (wrapping around from 4 to 1)
+          const nextSeatNum = currentSeatNum < 4 ? currentSeatNum + 1 : 1;
+          console.log('Next seat number:', nextSeatNum);
+          
+          // Get player ID at that seat
+          const nextPlayerId = room.playerSeats[nextSeatNum];
+          if (nextPlayerId) {
+            euchreState.currentPlayer = nextPlayerId;
+            console.log('Setting current player to:', nextPlayerId, '(', room.playerNames[nextPlayerId], ')');
+          } else {
+            console.error('No player found at next seat:', nextSeatNum);
+          }
+        } else {
+          console.error('Could not find current player seat number!');
         }
         
         if (euchreState.bidsMade >= 4) {
@@ -406,16 +429,17 @@ function handleEuchreBid(io, socket, bid) {
           const oldTurnUpSuit = euchreState.turnUpCard.suit;
           addToGameLog(euchreState, `Everyone passed. Turn down ${oldTurnUpSuit}.`);
           
-          // First player gets to choose suit
-          const firstPlayerIndex = (euchreState.dealerPosition + 1) % room.seatedPlayers.length;
-          const nextPlayerId = room.seatedPlayers[firstPlayerIndex];
-          euchreState.currentPlayer = nextPlayerId;
-          console.log('Moving to bidding2, setting current player to:', nextPlayerId);
+          // First player after dealer gets to choose suit
+          const firstSeat = (euchreState.dealerPosition % 4) + 1; // Convert dealer position (0-3) to seat number (1-4)
+          const firstPlayerId = room.playerSeats[firstSeat];
+          if (firstPlayerId) {
+            euchreState.currentPlayer = firstPlayerId;
+            console.log('Moving to bidding2, setting current player to:', firstPlayerId);
+          }
         }
       }
     } 
     else if (euchreState.gamePhase === 'bidding2') {
-      // Same pattern for bidding2...
       if (bid.action === 'callSuit') {
         console.log('Player calling suit...');
         // Player calls a suit
@@ -426,10 +450,14 @@ function handleEuchreBid(io, socket, bid) {
         euchreState.gamePhase = 'playing';
         
         // Player to left of dealer leads
-        const leadPlayerIndex = (euchreState.dealerPosition + 1) % room.seatedPlayers.length;
-        const nextPlayerId = room.seatedPlayers[leadPlayerIndex];
-        euchreState.currentPlayer = nextPlayerId;
-        console.log('Moving to playing phase, setting current player to:', nextPlayerId);
+        const dealerSeat = euchreState.dealerPosition + 1; // Convert from 0-based to 1-based
+        const nextSeat = dealerSeat < 4 ? dealerSeat + 1 : 1; // Wrap from 4 to 1
+        const nextPlayerId = room.playerSeats[nextSeat];
+        
+        if (nextPlayerId) {
+          euchreState.currentPlayer = nextPlayerId;
+          console.log('Moving to playing phase, setting current player to:', nextPlayerId);
+        }
         
         addToGameLog(euchreState, `${playerName} called ${euchreState.trumpSuit} as trump`);
       } 
@@ -439,18 +467,28 @@ function handleEuchreBid(io, socket, bid) {
         euchreState.bidsMade++;
         addToGameLog(euchreState, `${playerName} passed`);
 
-        // Move to next player
-        const currentIndex = room.seatedPlayers.indexOf(playerId);
-        console.log('Current index in seatedPlayers (round 2):', currentIndex);
+        // Move to next player using seat numbers
+        let currentSeatNum = null;
+        for (const [seatNum, id] of Object.entries(room.playerSeats)) {
+          if (id === playerId) {
+            currentSeatNum = parseInt(seatNum);
+            break;
+          }
+        }
         
-        if (currentIndex !== -1) {
-          const nextPlayerIndex = (currentIndex + 1) % room.seatedPlayers.length;
-          const nextPlayerId = room.seatedPlayers[nextPlayerIndex];
-          euchreState.currentPlayer = nextPlayerId;
-          console.log('Setting current player to:', nextPlayerId, '(', room.playerNames[nextPlayerId], ')');
-        } else {
-          console.error('Player not found in seatedPlayers:', playerId);
-          // Same recovery pattern as above
+        console.log('Current player seat number (round 2):', currentSeatNum);
+        
+        if (currentSeatNum) {
+          // Calculate next seat number (wrapping around from 4 to 1)
+          const nextSeatNum = currentSeatNum < 4 ? currentSeatNum + 1 : 1;
+          console.log('Next seat number:', nextSeatNum);
+          
+          // Get player ID at that seat
+          const nextPlayerId = room.playerSeats[nextSeatNum];
+          if (nextPlayerId) {
+            euchreState.currentPlayer = nextPlayerId;
+            console.log('Setting current player to:', nextPlayerId, '(', room.playerNames[nextPlayerId], ')');
+          }
         }
         
         if (euchreState.bidsMade >= 4) {
@@ -458,7 +496,7 @@ function handleEuchreBid(io, socket, bid) {
           addToGameLog(euchreState, `Everyone passed. Redealing.`);
           
           // Move dealer position
-          euchreState.dealerPosition = (euchreState.dealerPosition + 1) % room.seatedPlayers.length;
+          euchreState.dealerPosition = (euchreState.dealerPosition + 1) % 4;
           
           // Reset and redeal
           createDeck(euchreState);
@@ -469,11 +507,13 @@ function handleEuchreBid(io, socket, bid) {
           euchreState.gamePhase = 'bidding1';
           euchreState.bidsMade = 0;
           
-          // First player after dealer starts bidding
-          const starterIndex = (euchreState.dealerPosition + 1) % room.seatedPlayers.length;
-          const nextPlayerId = room.seatedPlayers[starterIndex];
-          euchreState.currentPlayer = nextPlayerId;
-          console.log('New deal, setting current player to:', nextPlayerId);
+          // First player after dealer starts bidding (using seat numbers)
+          const firstSeat = (euchreState.dealerPosition % 4) + 1;
+          const nextPlayerId = room.playerSeats[firstSeat];
+          if (nextPlayerId) {
+            euchreState.currentPlayer = nextPlayerId;
+            console.log('New deal, setting current player to:', nextPlayerId);
+          }
         }
       }
     }
@@ -483,41 +523,54 @@ function handleEuchreBid(io, socket, bid) {
     console.log('************** END BID INFO **************');
     
     // Update all players with the new game state
-    try {
-      // Explicitly broadcast to ensure everyone gets updated
-      io.to(roomId).emit('euchreGameState', { 
-        gameState: getFilteredGameState(euchreState, room),
-        roomState: room 
-      });
-    } catch (error) {
-      console.error('Error updating game state:', error);
-    }
+    broadcastGameState(io, roomId);
     
     // CRITICAL FIX: Check if the next player is a CPU and trigger their turn
     if (euchreState.currentPlayer && euchreState.currentPlayer.startsWith('cpu_')) {
       console.log(`Scheduling CPU turn for ${euchreState.currentPlayer}`);
       
-      // Use setImmediate to ensure CPU turns happen reliably
-      const cpuTurnTimeout = setTimeout(() => {
+      // We need to use setTimeout to ensure CPU turns happen reliably
+      setTimeout(() => {
         console.log(`Executing CPU turn for ${euchreState.currentPlayer}`);
-        try {
-          // Direct CPU player bid - IMPORTANT: Pass the CPU player ID directly, not as a socket object
+        
+        // Make sure the CPU is still the current player
+        if (euchreState.currentPlayer && euchreState.currentPlayer.startsWith('cpu_')) {
           if (euchreState.gamePhase === 'bidding1' || euchreState.gamePhase === 'bidding2') {
-            cpuBid(io, roomId, euchreState.currentPlayer);
+            // Get the CPU's ID
+            const cpuId = euchreState.currentPlayer;
+            
+            // Simulate a bid decision
+            const shouldBid = Math.random() < 0.4; // 40% chance to bid
+            
+            if (shouldBid) {
+              if (euchreState.gamePhase === 'bidding1') {
+                // Order up in first round
+                handleEuchreBid(io, cpuId, {
+                  action: 'orderUp',
+                  suit: euchreState.turnUpCard.suit
+                });
+              } else {
+                // Select a suit other than the turn-up suit
+                const suits = ['hearts', 'diamonds', 'clubs', 'spades'].filter(
+                  s => s !== euchreState.turnUpCard.suit
+                );
+                const selectedSuit = suits[Math.floor(Math.random() * suits.length)];
+                
+                handleEuchreBid(io, cpuId, {
+                  action: 'callSuit',
+                  suit: selectedSuit
+                });
+              }
+            } else {
+              // Pass
+              handleEuchreBid(io, cpuId, { action: 'pass' });
+            }
           } else if (euchreState.gamePhase === 'playing') {
-            cpuPlayCard(io, roomId, euchreState.currentPlayer);
-          }
-        } catch (error) {
-          console.error('Error in CPU turn:', error);
-          // Recovery attempt
-          if (euchreState.gamePhase === 'bidding1' || euchreState.gamePhase === 'bidding2') {
-            console.log('Error recovery: Making CPU pass after error');
-            handleEuchreBid(io, euchreState.currentPlayer, { action: 'pass' });
+            // Handle playing cards
+            // This would need additional implementation
           }
         }
-      }, 2000);
-    } else {
-      console.log(`Next player is not a CPU: ${euchreState.currentPlayer}`);
+      }, 1500);
     }
   } catch (error) {
     console.error('Unexpected error in handleEuchreBid:', error);
