@@ -1,6 +1,6 @@
 const { handleSitAtTable, handleStandFromTable, handleDisconnect, getActiveRooms, createRoom, roomStates, updateActiveRooms } = require('./roomLogic');
 const { startGame, rollDice } = require('./gameLogic');
-const { startEuchreGame, handleEuchreBid, handleEuchrePlayCard, checkForCPUTurn, broadcastGameState, getFilteredGameState, handleCPUCardPlay, cpuBid, cpuPlayCard, handleCPUTurns  } = require('./euchreLogic');
+const { startEuchreGame, handleEuchreBid, handlePlayCard, checkForCPUTurn, broadcastGameState, getFilteredGameState, handleCPUCardPlay, cpuBid, cpuPlayCard, handleCPUTurns  } = require('./euchreLogic');
 
 
 function setupSocket(io) {
@@ -231,7 +231,7 @@ function setupSocket(io) {
     
     socket.on('euchrePlayCard', (cardIndex) => {
       console.log('Received euchre card play from', socket.id, 'card index:', cardIndex);
-      handleEuchrePlayCard(io, socket, cardIndex);
+      handlePlayCard(io, socket, cardIndex);
       
       // Update active rooms after game state changes
       io.emit('updateActiveRooms', getActiveRooms());
