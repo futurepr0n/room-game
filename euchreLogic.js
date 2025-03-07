@@ -1344,69 +1344,15 @@ function prepareNextHand(euchreState, room) {
 // CPU bidding logic
 function cpuBid(io, roomId, cpuId) {
   const room = roomStates[roomId];
+  if (!room) return;
+  
   const euchreState = room.euchre;
+  if (!euchreState) return;
   
-  if (!euchreState) {
-    console.error('No euchre state for CPU bid');
-    return;
-  }
+  console.log(`CPU ${cpuId} is bidding`);
   
-  console.log(`CPU ${cpuId} bidding, game phase: ${euchreState.gamePhase}`);
-  
-  // Introduce more varied CPU behavior based on the CPU's "personality"
-  // Extract the CPU number from the ID to make it consistent
-  const cpuNum = parseInt(cpuId.split('_').pop()) || 1;
-  
-  if (euchreState.gamePhase === 'bidding1') {
-    // Use the CPU number to determine bid aggressiveness (more predictable)
-    const bidThreshold = 0.3 + (cpuNum * 0.1); // 0.4, 0.5, 0.6 for CPUs 1, 2, 3
-    
-    if (Math.random() < bidThreshold) {
-      // Order up
-      console.log(`CPU ${cpuId} ordering up ${euchreState.turnUpCard.suit} (threshold: ${bidThreshold})`);
-      
-      // CRITICAL FIX: Make sure to pass the CPU ID directly as a string, not as a socket object
-      handleEuchreBid(io, cpuId, { 
-        action: 'orderUp', 
-        suit: euchreState.turnUpCard.suit 
-      });
-    } else {
-      // Pass
-      console.log(`CPU ${cpuId} passing (threshold: ${bidThreshold})`);
-      
-      // CRITICAL FIX: Make sure to pass the CPU ID directly as a string, not as a socket object
-      handleEuchreBid(io, cpuId, { action: 'pass' });
-    }
-  } 
-  else if (euchreState.gamePhase === 'bidding2') {
-    // More likely to call in second round
-    const bidThreshold = 0.4 + (cpuNum * 0.1); // 0.5, 0.6, 0.7 for CPUs 1, 2, 3
-    
-    if (Math.random() < bidThreshold) {
-      // Select a random suit that isn't the turn-up suit
-      const availableSuits = ['hearts', 'diamonds', 'clubs', 'spades'].filter(s => 
-        s !== euchreState.turnUpCard.suit
-      );
-      
-      // Make the selection more deterministic based on CPU ID
-      const suitIndex = (cpuNum + euchreState.bidsMade) % availableSuits.length;
-      const selectedSuit = availableSuits[suitIndex];
-      
-      console.log(`CPU ${cpuId} calling suit: ${selectedSuit} (threshold: ${bidThreshold})`);
-      
-      // CRITICAL FIX: Make sure to pass the CPU ID directly as a string, not as a socket object
-      handleEuchreBid(io, cpuId, { 
-        action: 'callSuit', 
-        suit: selectedSuit 
-      });
-    } else {
-      // Pass
-      console.log(`CPU ${cpuId} passing in second round (threshold: ${bidThreshold})`);
-      
-      // CRITICAL FIX: Make sure to pass the CPU ID directly as a string, not as a socket object
-      handleEuchreBid(io, cpuId, { action: 'pass' });
-    }
-  }
+  // Always pass for now (simple but guaranteed to work)
+  handleEuchreBid(io, cpuId, { action: 'pass' });
 }
 
 // CPU card playing logic
