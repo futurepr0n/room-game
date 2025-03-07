@@ -1544,5 +1544,6 @@ module.exports = {
   fillEmptySeatsWithCPUs,
   broadcastGameState,
   getFilteredGameState,
-  handleCPUCardPlay
+  handleCPUCardPlay,
+  cpuBid
 };

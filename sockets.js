@@ -1,6 +1,6 @@
 const { handleSitAtTable, handleStandFromTable, handleDisconnect, getActiveRooms, createRoom, roomStates, updateActiveRooms } = require('./roomLogic');
 const { startGame, rollDice } = require('./gameLogic');
-const { startEuchreGame, handleEuchreBid, handleEuchrePlayCard, checkForCPUTurn, broadcastGameState, getFilteredGameState, handleCPUCardPlay } = require('./euchreLogic');
+const { startEuchreGame, handleEuchreBid, handleEuchrePlayCard, checkForCPUTurn, broadcastGameState, getFilteredGameState, handleCPUCardPlay, cpuBid } = require('./euchreLogic');
 
 
 function setupSocket(io) {
