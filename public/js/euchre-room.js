@@ -520,6 +520,21 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update game info and controls
     updateGameControls();
+
+    // Highlight first position player
+    if (gameState.firstPositionId) {
+      const firstPlayerElements = document.querySelectorAll('.player-area');
+      firstPlayerElements.forEach(el => {
+        const playerName = el.querySelector('.player-name');
+        if (playerName && playerName.textContent.includes(room.playerNames[gameState.firstPositionId])) {
+          el.classList.add('first-position');
+          // Optionally add an emoji indicator
+          playerName.innerHTML += ' 🏁';
+        } else {
+          el.classList.remove('first-position');
+        }
+      });
+    }
   }
 
   // Functions to render the game state

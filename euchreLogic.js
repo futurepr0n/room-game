@@ -1311,10 +1311,11 @@ function processHandScoring(io, roomId) {
   // Determine which team made the bid
   let makerTeam = 0; // 0=team1, 1=team2
   let makerName = 'Unknown';
+  let makerSeatNumber = null;
   for (const [seatNum, playerId] of Object.entries(room.playerSeats)) {
     if (playerId === euchreState.maker) {
-      const seatNumber = parseInt(seatNum);
-      makerTeam = (seatNumber === 1 || seatNumber === 3) ? 0 : 1;
+      makerSeatNumber = parseInt(seatNum);
+      makerTeam = (makerSeatNumber === 1 || makerSeatNumber === 3) ? 0 : 1;
       makerName = room.playerNames[playerId];
       break;
     }
@@ -1325,31 +1326,38 @@ function processHandScoring(io, roomId) {
   // Calculate scores
   let team1Score = 0;
   let team2Score = 0;
+  let winningTeam = null;
   
   if (makerTeam === 0) { // Team 1 made the bid
     if (team1Tricks >= 3) {
       if (team1Tricks === 5) {
         team1Score = 2; // All 5 tricks = 2 points
+        winningTeam = 0;
         addToGameLog(euchreState, `Team 1 (led by ${makerName}) made a march! +2 points`);
       } else {
         team1Score = 1; // 3-4 tricks = 1 point
+        winningTeam = 0;
         addToGameLog(euchreState, `Team 1 (led by ${makerName}) made their bid. +1 point`);
       }
     } else {
       team2Score = 2; // Euchre (failed to make bid) = 2 points for opponents
+      winningTeam = 1;
       addToGameLog(euchreState, `Team 1 was euchred! Team 2 gets +2 points. Maker: ${makerName}`);
     }
   } else { // Team 2 made the bid
     if (team2Tricks >= 3) {
       if (team2Tricks === 5) {
         team2Score = 2; // All 5 tricks = 2 points
+        winningTeam = 1;
         addToGameLog(euchreState, `Team 2 (led by ${makerName}) made a march! +2 points`);
       } else {
         team2Score = 1; // 3-4 tricks = 1 point
+        winningTeam = 1;
         addToGameLog(euchreState, `Team 2 (led by ${makerName}) made their bid. +1 point`);
       }
     } else {
       team1Score = 2; // Euchre (failed to make bid) = 2 points for opponents
+      winningTeam = 0;
       addToGameLog(euchreState, `Team 2 was euchred! Team 1 gets +2 points. Maker: ${makerName}`);
     }
   }
@@ -1362,6 +1370,25 @@ function processHandScoring(io, roomId) {
   
   // Add a log showing current scores
   addToGameLog(euchreState, `Current Scores - Team 1: ${euchreState.teamScores[0]}, Team 2: ${euchreState.teamScores[1]}`);
+  
+  // Determine the lead position for the next round
+  // If the team that made the bid won, their next partner leads
+  // If the defending team won, a player from that team leads
+  let nextLeadSeatNumber = null;
+  
+  if (winningTeam === makerTeam) {
+    // If maker's team won, find their partner's seat
+    nextLeadSeatNumber = makerSeatNumber === 1 ? 3 : 
+                         makerSeatNumber === 3 ? 1 : 
+                         makerSeatNumber === 2 ? 4 : 3;
+  } else {
+    // If defending team won, find a seat from that team
+    const defendingTeamSeats = makerTeam === 0 ? [2, 4] : [1, 3];
+    nextLeadSeatNumber = defendingTeamSeats[Math.floor(Math.random() * defendingTeamSeats.length)];
+  }
+  
+  // Store the next lead position
+  euchreState.nextLeadSeat = nextLeadSeatNumber;
   
   // Check if game is over (first to 10 points)
   if (euchreState.teamScores[0] >= 10 || euchreState.teamScores[1] >= 10) {
@@ -1534,10 +1561,18 @@ function handleEuchrePlayCard(io, socket, cardIndex) {
       const leadSuit = getEffectiveSuit(leadCard, euchreState.trumpSuit);
       const cardSuit = getEffectiveSuit(card, euchreState.trumpSuit);
       
-      // Check if player has any cards of the lead suit
-      const hasSuit = hand.some(c => getEffectiveSuit(c, euchreState.trumpSuit) === leadSuit);
+      // Get left bower suit
+      const leftBowerSuit = getLeftBowerSuit(euchreState.trumpSuit);
       
-      if (hasSuit && cardSuit !== leadSuit) {
+      // Check if player has any cards of the lead suit, including left and right bowers
+      const hasSuit = hand.some(c => {
+        const effectiveSuit = getEffectiveSuit(c, euchreState.trumpSuit);
+        return effectiveSuit === leadSuit || 
+               (c.rank === 'J' && (c.suit === leadSuit || c.suit === leftBowerSuit));
+      });
+      
+      if (hasSuit && cardSuit !== leadSuit && 
+          !(card.rank === 'J' && (card.suit === leadSuit || card.suit === leftBowerSuit))) {
         console.error(`Player must follow suit ${leadSuit}`);
         return; // Cannot play this card, must follow suit if possible
       }
@@ -1551,7 +1586,7 @@ function handleEuchrePlayCard(io, socket, cardIndex) {
     
     // If this is the first card in the trick, set it as the lead suit
     if (euchreState.currentTrick.length === 1) {
-      euchreState.leadSuit = card.suit;
+      euchreState.leadSuit = getEffectiveSuit(card, euchreState.trumpSuit);
     }
     
     // Remove the card from player's hand
