@@ -289,6 +289,6 @@ module.exports = {
   processNextPlayer,
   processCompletedTrick,
   getPlayerTeam,
-  getCurrentWinningPlay,
+  //getCurrentWinningPlay,
   arePartners
 } = require('./euchreCardUtils');
