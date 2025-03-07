@@ -1343,49 +1343,6 @@ function prepareNextHand(euchreState, room) {
   addToGameLog(euchreState, 'Ready for next hand. Click Deal to continue.');
 }
 
-// Complete the CPU turn handler in handleEuchreBid
-if (euchreState.currentPlayer && euchreState.currentPlayer.startsWith('cpu_')) {
-  console.log(`Scheduling CPU turn for ${euchreState.currentPlayer}`);
-  
-  // Add delay for natural feeling
-  setTimeout(() => {
-    // Verify CPU is still current player
-    if (room.euchre && room.euchre.currentPlayer === euchreState.currentPlayer) {
-      console.log(`CPU ${euchreState.currentPlayer} taking turn`);
-      
-      if (euchreState.gamePhase === 'bidding1' || euchreState.gamePhase === 'bidding2') {
-        // Simple CPU bidding strategy
-        const shouldBid = Math.random() < 0.4; // 40% chance to bid
-        
-        if (shouldBid) {
-          if (euchreState.gamePhase === 'bidding1') {
-            handleEuchreBid(io, euchreState.currentPlayer, {
-              action: 'orderUp',
-              suit: euchreState.turnUpCard.suit
-            });
-          } else {
-            // Pick a random suit other than turn-up suit
-            const suits = ['hearts', 'diamonds', 'clubs', 'spades'].filter(
-              s => s !== euchreState.turnUpCard.suit
-            );
-            const selectedSuit = suits[Math.floor(Math.random() * suits.length)];
-            
-            handleEuchreBid(io, euchreState.currentPlayer, {
-              action: 'callSuit',
-              suit: selectedSuit
-            });
-          }
-        } else {
-          // Pass
-          handleEuchreBid(io, euchreState.currentPlayer, { action: 'pass' });
-        }
-      } else if (euchreState.gamePhase === 'playing') {
-        // Handle CPU card play with the comprehensive system above
-        handleCPUCardPlay(io, roomId, euchreState.currentPlayer);
-      }
-    }
-  }, 1500);
-}
 
 // CPU bidding logic
 function cpuBid(io, roomId, cpuId) {
