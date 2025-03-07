@@ -1646,6 +1646,22 @@ function prepareNextHand(io, euchreState, room) {
     euchreState.firstPositionId = firstPlayerId; // Set first position
   }
   
+  // Find the roomId by looking in roomStates or checking room properties
+  let roomId = null;
+  
+  // First, check if the room has a roomId property (we'll add this in our refactoring)
+  if (room.roomId) {
+    roomId = room.roomId;
+  } else {
+    // Otherwise, find it by searching through roomStates
+    for (const [id, stateRoom] of Object.entries(roomStates)) {
+      if (stateRoom === room) {
+        roomId = id;
+        break;
+      }
+    }
+  }
+
   // If the first player is a CPU, handle their turn after a short delay
   if (firstPlayerId && firstPlayerId.startsWith('cpu_')) {
     setTimeout(() => {
