@@ -17,6 +17,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const gameLog = document.getElementById('game-log');
   const teamScore1 = document.getElementById('team-score-1');
   const teamScore2 = document.getElementById('team-score-2');
+
+  const orderUpAloneBtn = document.getElementById('order-up-alone');
+  const callAloneBtn = document.getElementById('call-alone');
+  let selectedSuit = null;
   
   // Room system UI elements
   const standButton = document.getElementById('stand-button');
@@ -117,6 +121,58 @@ document.addEventListener('DOMContentLoaded', function() {
       socket.emit('euchreBid', { action: 'pass' });
       logEvent('You passed');
     });
+
+    // Add event listener for Order Up Alone button
+  if (orderUpAloneBtn) {
+    orderUpAloneBtn.addEventListener('click', function() {
+      if (gameState && gameState.turnUpCard) {
+        console.log('Order up alone button clicked with suit:', gameState.turnUpCard.suit);
+        socket.emit('euchreBid', { 
+          action: 'orderUpAlone', 
+          suit: gameState.turnUpCard.suit 
+        });
+        logEvent(`You ordered up ${gameState.turnUpCard.suit} and are going alone!`);
+      }
+    });
+  }
+  
+  // Update suit selection buttons to track selected suit
+  document.querySelectorAll('.suit-btn').forEach(button => {
+    button.addEventListener('click', function() {
+      // Clear previous selections
+      document.querySelectorAll('.suit-btn').forEach(btn => {
+        btn.classList.remove('selected');
+      });
+      
+      // Highlight this selection
+      this.classList.add('selected');
+      selectedSuit = this.dataset.suit;
+      
+      // Regular call suit - we'll let the Go Alone button handle alone calls
+      socket.emit('euchreBid', { 
+        action: 'callSuit', 
+        suit: selectedSuit 
+      });
+      logEvent(`You called ${selectedSuit} as trump`);
+    });
+  });
+  
+  // Add event listener for Call Alone button
+  if (callAloneBtn) {
+    callAloneBtn.addEventListener('click', function() {
+      if (selectedSuit) {
+        console.log('Going alone with suit:', selectedSuit);
+        socket.emit('euchreBid', { 
+          action: 'callSuitAlone', 
+          suit: selectedSuit 
+        });
+        logEvent(`You called ${selectedSuit} as trump and are going alone!`);
+      } else {
+        // Show error if no suit is selected
+        alert('Please select a suit first');
+      }
+    });
+  }
     
     document.querySelectorAll('.suit-btn').forEach(button => {
       button.addEventListener('click', function() {
@@ -304,6 +360,28 @@ document.addEventListener('DOMContentLoaded', function() {
       else if (gameState.currentPlayer === myPlayerId) {
         infoText.textContent = `Do you want to order up ${gameState.turnUpCard.suit}?`;
         biddingControls.style.display = 'block';
+        
+        // Enable/disable going alone option based on dealer
+        // If player is dealer, they're ordering up to themselves
+        let isDealer = false;
+        for (const [seatNum, playerId] of Object.entries(roomState.playerSeats)) {
+          if (playerId === myPlayerId) {
+            const dealerPos = gameState.dealerPosition;
+            const dealerSeat = (dealerPos % 4) + 1;
+            isDealer = (parseInt(seatNum) === dealerSeat);
+            break;
+          }
+        }
+        
+        // Always show the regular order up button
+        if (document.getElementById('order-up')) {
+          document.getElementById('order-up').style.display = 'inline-block';
+        }
+        
+        // Only show alone option when appropriate
+        if (document.getElementById('order-up-alone')) {
+          document.getElementById('order-up-alone').style.display = isDealer ? 'none' : 'inline-block';
+        }
       } else {
         // Another player's turn
         const currentPlayerName = roomState.playerNames[gameState.currentPlayer] || 'Unknown';
@@ -327,8 +405,13 @@ document.addEventListener('DOMContentLoaded', function() {
             button.disabled = true;
           } else {
             button.disabled = false;
+            // Clear any previous selections
+            button.classList.remove('selected');
           }
         });
+        
+        // Reset the selected suit
+        selectedSuit = null;
       } else {
         // Another player's turn
         const currentPlayerName = roomState.playerNames[gameState.currentPlayer] || 'Unknown';
@@ -336,6 +419,41 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } 
     else if (gameState.gamePhase === 'playing') {
+      // Show going alone indicator when applicable
+      let alonePlayerName = '';
+      if (gameState.isGoingAlone && gameState.alonePlayer) {
+        alonePlayerName = roomState.playerNames[gameState.alonePlayer] || 'Unknown';
+        
+        // Add alone indicator if not already present
+        if (!document.getElementById('alone-indicator')) {
+          const aloneIndicator = document.createElement('div');
+          aloneIndicator.id = 'alone-indicator';
+          aloneIndicator.className = 'alone-indicator';
+          aloneIndicator.textContent = `${alonePlayerName} IS GOING ALONE`;
+          aloneIndicator.style.position = 'absolute';
+          aloneIndicator.style.top = '60px';
+          aloneIndicator.style.left = '50%';
+          aloneIndicator.style.transform = 'translateX(-50%)';
+          aloneIndicator.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+          aloneIndicator.style.color = 'white';
+          aloneIndicator.style.padding = '5px 10px';
+          aloneIndicator.style.borderRadius = '5px';
+          aloneIndicator.style.zIndex = '1000';
+          aloneIndicator.style.fontWeight = 'bold';
+          
+          const gameContainer = document.querySelector('.game-container');
+          if (gameContainer) {
+            gameContainer.appendChild(aloneIndicator);
+          }
+        }
+      } else {
+        // Remove alone indicator if present but no longer applicable
+        const aloneIndicator = document.getElementById('alone-indicator');
+        if (aloneIndicator) {
+          aloneIndicator.remove();
+        }
+      }
+      
       // For spectators
       if (isSpectator) {
         const currentPlayerName = roomState.playerNames[gameState.currentPlayer] || 'Unknown';
@@ -391,29 +509,84 @@ document.addEventListener('DOMContentLoaded', function() {
         const playerArea = document.querySelector(`.player-${position}`);
         if (playerArea) {
           playerArea.appendChild(indicator);
+        }
+      }
+    }
+    
+    // Highlight dealer position
+    document.querySelectorAll('.dealer-indicator').forEach(el => el.remove());
+    
+    if (gameState.dealerPosition !== undefined) {
+      const dealerSeat = (gameState.dealerPosition % 4) + 1;
+      let dealerPosition;
+      switch (dealerSeat) {
+        case 1: dealerPosition = 'north'; break;
+        case 2: dealerPosition = 'west'; break;
+        case 3: dealerPosition = 'south'; break;
+        case 4: dealerPosition = 'east'; break;
+      }
+      
+      const dealerArea = document.querySelector(`.player-${dealerPosition}`);
+      if (dealerArea) {
+        const dealerIndicator = document.createElement('div');
+        dealerIndicator.className = 'dealer-indicator';
+        dealerIndicator.textContent = 'DEALER';
+        dealerIndicator.style.position = 'absolute';
+        dealerIndicator.style.bottom = '5px';
+        dealerIndicator.style.right = '5px';
+        dealerIndicator.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        dealerIndicator.style.color = 'white';
+        dealerIndicator.style.padding = '3px 6px';
+        dealerIndicator.style.borderRadius = '3px';
+        dealerIndicator.style.fontSize = '10px';
+        
+        dealerArea.appendChild(dealerIndicator);
+      }
+    }
+    
+    // Highlight first position player (lead position)
+    document.querySelectorAll('.first-position-indicator').forEach(el => el.remove());
+    
+    if (gameState.firstPositionId) {
+      // Find seat number for first position player
+      let firstSeat = null;
+      for (const [seatNumber, playerId] of Object.entries(roomState.playerSeats)) {
+        if (playerId === gameState.firstPositionId) {
+          firstSeat = parseInt(seatNumber);
+          break;
+        }
+      }
+      
+      if (firstSeat) {
+        let firstPosition;
+        switch (firstSeat) {
+          case 1: firstPosition = 'north'; break;
+          case 2: firstPosition = 'west'; break;
+          case 3: firstPosition = 'south'; break;
+          case 4: firstPosition = 'east'; break;
+        }
+        
+        const firstArea = document.querySelector(`.player-${firstPosition}`);
+        if (firstArea) {
+          const firstIndicator = document.createElement('div');
+          firstIndicator.className = 'first-position-indicator';
+          firstIndicator.textContent = 'LEAD';
+          firstIndicator.style.position = 'absolute';
+          firstIndicator.style.top = '5px';
+          firstIndicator.style.left = '5px';
+          firstIndicator.style.backgroundColor = 'rgba(255, 215, 0, 0.7)';
+          firstIndicator.style.color = 'black';
+          firstIndicator.style.padding = '3px 6px';
+          firstIndicator.style.borderRadius = '3px';
+          firstIndicator.style.fontSize = '10px';
+          firstIndicator.style.fontWeight = 'bold';
           
-          // Position based on the player's area
-          if (position === 'south') {
-            indicator.style.bottom = '5px';
-            indicator.style.left = '50%';
-            indicator.style.transform = 'translateX(-50%)';
-          } else if (position === 'north') {
-            indicator.style.top = '5px';
-            indicator.style.left = '50%';
-            indicator.style.transform = 'translateX(-50%)';
-          } else if (position === 'west') {
-            indicator.style.left = '5px';
-            indicator.style.top = '50%';
-            indicator.style.transform = 'translateY(-50%)';
-          } else if (position === 'east') {
-            indicator.style.right = '5px';
-            indicator.style.top = '50%';
-            indicator.style.transform = 'translateY(-50%)';
-          }
+          firstArea.appendChild(firstIndicator);
         }
       }
     }
   }
+  
 
   // Helper functions for the UI
   function updatePlayerLists(room) {

@@ -383,3 +383,30 @@ button:disabled {
     font-size: 12px;
   }
 }
+
+.suit-btn.selected {
+  background-color: #4CAF50;
+  color: white;
+  font-weight: bold;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+  transform: scale(1.05);
+}
+
+#order-up-alone, #call-alone {
+  background-color: #ff6b6b;
+  font-weight: bold;
+}
+
+#order-up-alone:hover, #call-alone:hover {
+  background-color: #e53e3e;
+}
+
+.alone-indicator {
+  animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+  0% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.1); }
+  100% { transform: translateX(-50%) scale(1); }
+}

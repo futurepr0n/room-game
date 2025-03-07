@@ -23,8 +23,10 @@ function initializeEuchreGame(roomId) {
     bidsMade: 0,
     leadSuit: null,
     isGoingAlone: false,
+    alonePlayer: null,
     roundComplete: false,
-    gameLog: []
+    gameLog: [],
+    firstPositionId: null // Add this to track the lead position
   };
 
   return room.euchre;
@@ -374,9 +376,9 @@ function handleEuchreBid(io, socket, bid) {
     const playerName = room.playerNames[playerId];
     console.log(`Player ${playerName} (${playerId}) is bidding:`, bid.action);
     
-    // FIXED: Order Up Logic - completely rewrite this section
+    // UPDATED: Order Up Logic with going alone option
     if (euchreState.gamePhase === 'bidding1') {
-      if (bid.action === 'orderUp') {
+      if (bid.action === 'orderUp' || bid.action === 'orderUpAlone') {
         console.log(`********** ORDER UP ACTION **********`);
         console.log('Player ordering up suit:', bid.suit);
         
@@ -384,60 +386,49 @@ function handleEuchreBid(io, socket, bid) {
         euchreState.trumpSuit = bid.suit;
         euchreState.maker = playerId;
         
+        // Handle going alone option
+        euchreState.isGoingAlone = bid.action === 'orderUpAlone';
+        euchreState.alonePlayer = bid.action === 'orderUpAlone' ? playerId : null;
+        
         // Find dealer's position and ID
         const dealerPosition = euchreState.dealerPosition;
         const dealerSeatNum = (dealerPosition % 4) + 1; // Convert 0-3 to 1-4
         const dealerId = room.playerSeats[dealerSeatNum];
         
-        console.log('Dealer position:', dealerPosition);
-        console.log('Dealer seat number:', dealerSeatNum);
-        console.log('Dealer ID:', dealerId);
-        
         // Add the turn-up card to dealer's hand
         if (euchreState.hands[dealerId]) {
           console.log('Adding turn-up card to dealer hand');
-          console.log('Turn-up card:', euchreState.turnUpCard);
-          console.log('Dealer hand before:', euchreState.hands[dealerId]);
-          
-          // Add card to hand
           euchreState.hands[dealerId].push(euchreState.turnUpCard);
-          
-          // Dealer will discard a card (for simplicity, just the first card)
           const discardedCard = euchreState.hands[dealerId].shift();
           console.log('Dealer discarded:', discardedCard);
-          console.log('Dealer hand after:', euchreState.hands[dealerId]);
-        } else {
-          console.error('Dealer hand not found for dealer ID:', dealerId);
         }
         
         // Move to playing phase
         euchreState.gamePhase = 'playing';
-        console.log('Game phase changed to playing');
         
         // Player to left of dealer leads
         const leadSeatNum = dealerSeatNum < 4 ? dealerSeatNum + 1 : 1; // Wrap from 4 to 1
         const leadPlayerId = room.playerSeats[leadSeatNum];
         
-        console.log('Lead seat number:', leadSeatNum);
-        console.log('Lead player ID:', leadPlayerId);
-        
         if (leadPlayerId) {
           euchreState.currentPlayer = leadPlayerId;
+          euchreState.firstPositionId = leadPlayerId; // Set first position
           console.log('Current player now set to:', leadPlayerId);
-        } else {
-          console.error('Cannot find player at lead seat:', leadSeatNum);
         }
         
-        // Add game log entry
-        addToGameLog(euchreState, `${playerName} ordered up ${euchreState.trumpSuit}`);
-        console.log(`********* END ORDER UP ACTION *********`);
+        // Add game log entry with alone info if applicable
+        if (euchreState.isGoingAlone) {
+          addToGameLog(euchreState, `${playerName} ordered up ${euchreState.trumpSuit} and is going ALONE!`);
+        } else {
+          addToGameLog(euchreState, `${playerName} ordered up ${euchreState.trumpSuit}`);
+        }
       } 
       else if (bid.action === 'pass') {
-        // Player passes - this appears to be working already
+        // Player passes - increment count
         euchreState.bidsMade++;
         addToGameLog(euchreState, `${playerName} passed`);
 
-        // Move to next player - Find the current player's seat number
+        // Find the current player's seat number
         let currentSeatNum = null;
         for (const [seatNum, id] of Object.entries(room.playerSeats)) {
           if (id === playerId) {
@@ -446,29 +437,19 @@ function handleEuchreBid(io, socket, bid) {
           }
         }
         
-        console.log('Current player seat number:', currentSeatNum);
-        
         if (currentSeatNum) {
-          // Calculate next seat number (wrapping around from 4 to 1)
-          //const nextSeatNum = currentSeatNum < 4 ? currentSeatNum + 1 : 1;
+          // Calculate next seat number (clockwise)
           let nextSeatNum;
           if (currentSeatNum === 1) nextSeatNum = 4;
           else if (currentSeatNum === 4) nextSeatNum = 3;
           else if (currentSeatNum === 3) nextSeatNum = 2;
           else if (currentSeatNum === 2) nextSeatNum = 1;
-          else nextSeatNum = 1;
-          console.log('Next seat number:', nextSeatNum);
           
           // Get player ID at that seat
           const nextPlayerId = room.playerSeats[nextSeatNum];
           if (nextPlayerId) {
             euchreState.currentPlayer = nextPlayerId;
-            console.log('Setting current player to:', nextPlayerId, '(', room.playerNames[nextPlayerId], ')');
-          } else {
-            console.error('No player found at next seat:', nextSeatNum);
           }
-        } else {
-          console.error('Could not find current player seat number!');
         }
         
         if (euchreState.bidsMade >= 4) {
@@ -488,18 +469,21 @@ function handleEuchreBid(io, socket, bid) {
           
           if (firstPlayerId) {
             euchreState.currentPlayer = firstPlayerId;
-            console.log('Moving to bidding2, setting current player to:', firstPlayerId);
           }
         }
       }
     } 
-    // Logic for bidding2 phase...
+    // Updated logic for bidding2 phase with alone option
     else if (euchreState.gamePhase === 'bidding2') {
-      if (bid.action === 'callSuit') {
+      if (bid.action === 'callSuit' || bid.action === 'callSuitAlone') {
         console.log('Player calling suit...');
         // Player calls a suit
         euchreState.trumpSuit = bid.suit;
         euchreState.maker = playerId;
+        
+        // Handle going alone option
+        euchreState.isGoingAlone = bid.action === 'callSuitAlone';
+        euchreState.alonePlayer = bid.action === 'callSuitAlone' ? playerId : null;
         
         // Move to playing phase
         euchreState.gamePhase = 'playing';
@@ -512,13 +496,17 @@ function handleEuchreBid(io, socket, bid) {
         
         if (nextPlayerId) {
           euchreState.currentPlayer = nextPlayerId;
-          console.log('Moving to playing phase, setting current player to:', nextPlayerId);
+          euchreState.firstPositionId = nextPlayerId; // Set first position
         }
         
-        addToGameLog(euchreState, `${playerName} called ${euchreState.trumpSuit} as trump`);
+        if (euchreState.isGoingAlone) {
+          addToGameLog(euchreState, `${playerName} called ${euchreState.trumpSuit} as trump and is going ALONE!`);
+        } else {
+          addToGameLog(euchreState, `${playerName} called ${euchreState.trumpSuit} as trump`);
+        }
       } 
       else if (bid.action === 'pass') {
-        // Handle passing in round 2 - this appears to be working already
+        // Handle passing in round 2
         euchreState.bidsMade++;
         addToGameLog(euchreState, `${playerName} passed`);
 
@@ -532,17 +520,15 @@ function handleEuchreBid(io, socket, bid) {
         }
         
         if (currentSeatNum) {
-          //const nextSeatNum = currentSeatNum < 4 ? currentSeatNum + 1 : 1;
           let nextSeatNum;
           if (currentSeatNum === 1) nextSeatNum = 4;
           else if (currentSeatNum === 4) nextSeatNum = 3;
           else if (currentSeatNum === 3) nextSeatNum = 2;
           else if (currentSeatNum === 2) nextSeatNum = 1;
-          else nextSeatNum = 1;
+          
           const nextPlayerId = room.playerSeats[nextSeatNum];
           if (nextPlayerId) {
             euchreState.currentPlayer = nextPlayerId;
-            console.log('Setting current player to:', nextPlayerId);
           }
         }
         
@@ -570,38 +556,20 @@ function handleEuchreBid(io, socket, bid) {
           
           if (nextPlayerId) {
             euchreState.currentPlayer = nextPlayerId;
-            console.log('New deal, setting current player to:', nextPlayerId);
+            euchreState.firstPositionId = nextPlayerId; // Set first position
           }
         }
       }
     }
     
-    // Log the current game state
-    console.log('GAME STATE AFTER BID ACTION:');
-    console.log('- Game Phase:', euchreState.gamePhase);
-    console.log('- Current Player:', euchreState.currentPlayer);
-    console.log('- Trump Suit:', euchreState.trumpSuit);
-    console.log('- Maker:', euchreState.maker);
-    console.log('- Bids Made:', euchreState.bidsMade);
-    
     // IMPORTANT: Broadcast the updated game state
-    try {
-      broadcastGameState(io, roomId);
-    } catch (error) {
-      console.error('Error broadcasting game state:', error);
-    }
+    broadcastGameState(io, roomId);
+    
     // Schedule CPU turns if needed
-
     if (euchreState.currentPlayer && euchreState.currentPlayer.startsWith('cpu_')) {
-      console.log(`Scheduling CPU turn for ${euchreState.currentPlayer}`);
-      
-      // Add delay for natural feeling
       setTimeout(() => {
         // Verify CPU is still current player
         if (room.euchre && room.euchre.currentPlayer === euchreState.currentPlayer) {
-          console.log(`CPU ${euchreState.currentPlayer} taking turn`);
-          
-          // Let the handleCPUTurns function handle the CPU logic
           handleCPUTurns(io, roomId);
         }
       }, 1500);
@@ -611,6 +579,8 @@ function handleEuchreBid(io, socket, bid) {
     console.error(error.stack);
   }
 }
+
+
 
 function determineTrickWinner(euchreState) {
   const trumpSuit = euchreState.trumpSuit;
@@ -775,8 +745,74 @@ function handleCPUCardPlay(io, roomId, cpuId) {
     
     console.log(`CPU ${cpuId} hand:`, hand);
     
-    // Select the first card for simplicity
-    const cardIndex = 0;
+    // Choose a card to play based on the current trick and strategy
+    let cardIndex = 0; // Default to first card
+    
+    // If leading the trick, use leading strategy
+    if (euchreState.currentTrick.length === 0) {
+      cardIndex = selectLeadCard(hand, euchreState, cpuId, room);
+    } else {
+      // Following a trick, must follow suit if possible
+      const leadCard = euchreState.currentTrick[0].card;
+      const leadSuit = getEffectiveSuit(leadCard, euchreState.trumpSuit);
+      
+      // Get cards that match the lead suit (considering effective suit with bowers)
+      const matchingSuitCards = [];
+      hand.forEach((card, index) => {
+        if (getEffectiveSuit(card, euchreState.trumpSuit) === leadSuit) {
+          matchingSuitCards.push({ card, index });
+        }
+      });
+      
+      if (matchingSuitCards.length > 0) {
+        // Must play a card of the lead suit
+        // Simple strategy: play highest card if partner isn't winning, otherwise play lowest
+        const partnerWinning = isPartnerCurrentlyWinning(euchreState, cpuId, room);
+        
+        if (partnerWinning) {
+          // Play lowest card of the suit
+          const lowestCard = matchingSuitCards.sort((a, b) => 
+            getCardValue(a.card, euchreState.trumpSuit) - getCardValue(b.card, euchreState.trumpSuit)
+          )[0];
+          cardIndex = lowestCard.index;
+        } else {
+          // Play highest card of the suit
+          const highestCard = matchingSuitCards.sort((a, b) => 
+            getCardValue(b.card, euchreState.trumpSuit) - getCardValue(a.card, euchreState.trumpSuit)
+          )[0];
+          cardIndex = highestCard.index;
+        }
+      } else {
+        // Cannot follow suit, play lowest card (or strategically trump if possible)
+        const partnerWinning = isPartnerCurrentlyWinning(euchreState, cpuId, room);
+        
+        if (!partnerWinning) {
+          // Try to find a trump card to play
+          const trumpCards = [];
+          hand.forEach((card, index) => {
+            if (getEffectiveSuit(card, euchreState.trumpSuit) === euchreState.trumpSuit) {
+              trumpCards.push({ card, index });
+            }
+          });
+          
+          if (trumpCards.length > 0) {
+            // Play lowest trump card
+            const lowestTrump = trumpCards.sort((a, b) => 
+              getCardValue(a.card, euchreState.trumpSuit) - getCardValue(b.card, euchreState.trumpSuit)
+            )[0];
+            cardIndex = lowestTrump.index;
+          } else {
+            // No trump, play lowest card
+            cardIndex = findLowestCard(hand, euchreState.trumpSuit);
+          }
+        } else {
+          // Partner winning, play lowest card
+          cardIndex = findLowestCard(hand, euchreState.trumpSuit);
+        }
+      }
+    }
+    
+    // Get the selected card
     const card = hand[cardIndex];
     
     console.log(`CPU ${cpuId} playing card:`, card);
@@ -789,7 +825,7 @@ function handleCPUCardPlay(io, roomId, cpuId) {
     
     // If this is the first card in the trick, set it as the lead suit
     if (euchreState.currentTrick.length === 1) {
-      euchreState.leadSuit = card.suit;
+      euchreState.leadSuit = getEffectiveSuit(card, euchreState.trumpSuit);
     }
     
     // Remove the card from CPU's hand
@@ -806,6 +842,145 @@ function handleCPUCardPlay(io, roomId, cpuId) {
   } catch (error) {
     console.error('Error in CPU card play:', error);
   }
+}
+
+function findLowestCard(hand, trumpSuit) {
+  let lowestIndex = 0;
+  let lowestValue = Number.MAX_SAFE_INTEGER;
+  
+  hand.forEach((card, index) => {
+    const value = getCardValue(card, trumpSuit);
+    if (value < lowestValue) {
+      lowestValue = value;
+      lowestIndex = index;
+    }
+  });
+  
+  return lowestIndex;
+}
+
+// Helper function to select a lead card
+function selectLeadCard(hand, euchreState, cpuId, room) {
+  // If we have the right bower, lead it
+  for (let i = 0; i < hand.length; i++) {
+    if (hand[i].rank === 'J' && hand[i].suit === euchreState.trumpSuit) {
+      return i;
+    }
+  }
+  
+  // If we have the left bower, lead it
+  const leftBowerSuit = getLeftBowerSuit(euchreState.trumpSuit);
+  for (let i = 0; i < hand.length; i++) {
+    if (hand[i].rank === 'J' && hand[i].suit === leftBowerSuit) {
+      return i;
+    }
+  }
+  
+  // If we have an Ace of a non-trump suit, lead it
+  for (let i = 0; i < hand.length; i++) {
+    if (hand[i].rank === 'A' && getEffectiveSuit(hand[i], euchreState.trumpSuit) !== euchreState.trumpSuit) {
+      return i;
+    }
+  }
+  
+  // Otherwise lead the highest non-trump card
+  let highestNonTrump = 0;
+  let highestValue = -1;
+  
+  for (let i = 0; i < hand.length; i++) {
+    if (getEffectiveSuit(hand[i], euchreState.trumpSuit) !== euchreState.trumpSuit) {
+      const value = getCardValue(hand[i], euchreState.trumpSuit);
+      if (value > highestValue) {
+        highestValue = value;
+        highestNonTrump = i;
+      }
+    }
+  }
+  
+  // If we found a non-trump card, lead it
+  if (highestValue > 0) {
+    return highestNonTrump;
+  }
+  
+  // If we only have trump cards, lead the lowest one
+  return findLowestCard(hand, euchreState.trumpSuit);
+}
+
+// Helper function to check if partner is winning the current trick
+function isPartnerCurrentlyWinning(euchreState, cpuId, room) {
+  if (euchreState.currentTrick.length === 0) return false;
+  
+  // Find the current winning play
+  let highestPlay = euchreState.currentTrick[0];
+  let highestValue = getCardValue(highestPlay.card, euchreState.trumpSuit);
+  
+  for (let i = 1; i < euchreState.currentTrick.length; i++) {
+    const play = euchreState.currentTrick[i];
+    const value = getCardValue(play.card, euchreState.trumpSuit);
+    
+    if (value > highestValue) {
+      highestPlay = play;
+      highestValue = value;
+    }
+  }
+  
+  // Check if the winning player is partner
+  const winningPlayerId = highestPlay.player;
+  
+  // Find the CPU's seat and winning player's seat
+  let cpuSeat = null;
+  let winningSeat = null;
+  
+  for (const [seatNum, playerId] of Object.entries(room.playerSeats)) {
+    if (playerId === cpuId) {
+      cpuSeat = parseInt(seatNum);
+    }
+    if (playerId === winningPlayerId) {
+      winningSeat = parseInt(seatNum);
+    }
+  }
+  
+  if (!cpuSeat || !winningSeat) return false;
+  
+  // Players are partners if they are diagonal (sum of seat numbers is 5)
+  return (cpuSeat + winningSeat) === 5;
+}
+
+// Helper function to get card value for comparison
+function getCardValue(card, trumpSuit) {
+  const suit = card.suit;
+  const rank = card.rank;
+  
+  // Base card values (higher = stronger)
+  const rankValues = {
+    '9': 9,
+    '10': 10,
+    'J': 11,
+    'Q': 12,
+    'K': 13,
+    'A': 14
+  };
+  
+  // Get effective suit (accounting for left bower)
+  const effectiveSuit = getEffectiveSuit(card, trumpSuit);
+  
+  // Right bower is highest
+  if (rank === 'J' && suit === trumpSuit) {
+    return 100; // Right bower
+  }
+  
+  // Left bower is second highest
+  if (rank === 'J' && effectiveSuit === trumpSuit && suit !== trumpSuit) {
+    return 99; // Left bower
+  }
+  
+  // Trump cards are higher than non-trump
+  if (effectiveSuit === trumpSuit) {
+    return rankValues[rank] + 50; // Trump bonus
+  }
+  
+  // Regular card
+  return rankValues[rank];
 }
 
 // Helper function to select which card to play
@@ -1321,8 +1496,6 @@ function processHandScoring(io, roomId) {
     }
   }
   
-  console.log('Maker team:', makerTeam === 0 ? 'Team 1' : 'Team 2');
-  
   // Calculate scores
   let team1Score = 0;
   let team2Score = 0;
@@ -1331,34 +1504,62 @@ function processHandScoring(io, roomId) {
   if (makerTeam === 0) { // Team 1 made the bid
     if (team1Tricks >= 3) {
       if (team1Tricks === 5) {
-        team1Score = 2; // All 5 tricks = 2 points
+        // All 5 tricks = 2 points, or 4 if going alone
+        team1Score = euchreState.isGoingAlone ? 4 : 2;
         winningTeam = 0;
-        addToGameLog(euchreState, `Team 1 (led by ${makerName}) made a march! +2 points`);
+        if (euchreState.isGoingAlone) {
+          addToGameLog(euchreState, `Team 1 (${makerName} going alone) made a march! +4 points`);
+        } else {
+          addToGameLog(euchreState, `Team 1 (led by ${makerName}) made a march! +2 points`);
+        }
       } else {
-        team1Score = 1; // 3-4 tricks = 1 point
+        // 3-4 tricks = 1 point, or 4 if going alone
+        team1Score = euchreState.isGoingAlone ? 4 : 1;
         winningTeam = 0;
-        addToGameLog(euchreState, `Team 1 (led by ${makerName}) made their bid. +1 point`);
+        if (euchreState.isGoingAlone) {
+          addToGameLog(euchreState, `Team 1 (${makerName} going alone) made their bid! +4 points`);
+        } else {
+          addToGameLog(euchreState, `Team 1 (led by ${makerName}) made their bid. +1 point`);
+        }
       }
     } else {
       team2Score = 2; // Euchre (failed to make bid) = 2 points for opponents
       winningTeam = 1;
-      addToGameLog(euchreState, `Team 1 was euchred! Team 2 gets +2 points. Maker: ${makerName}`);
+      if (euchreState.isGoingAlone) {
+        addToGameLog(euchreState, `Team 1 was euchred going alone! Team 2 gets +2 points. Maker: ${makerName}`);
+      } else {
+        addToGameLog(euchreState, `Team 1 was euchred! Team 2 gets +2 points. Maker: ${makerName}`);
+      }
     }
   } else { // Team 2 made the bid
     if (team2Tricks >= 3) {
       if (team2Tricks === 5) {
-        team2Score = 2; // All 5 tricks = 2 points
+        // All 5 tricks = 2 points, or 4 if going alone
+        team2Score = euchreState.isGoingAlone ? 4 : 2;
         winningTeam = 1;
-        addToGameLog(euchreState, `Team 2 (led by ${makerName}) made a march! +2 points`);
+        if (euchreState.isGoingAlone) {
+          addToGameLog(euchreState, `Team 2 (${makerName} going alone) made a march! +4 points`);
+        } else {
+          addToGameLog(euchreState, `Team 2 (led by ${makerName}) made a march! +2 points`);
+        }
       } else {
-        team2Score = 1; // 3-4 tricks = 1 point
+        // 3-4 tricks = 1 point, or 4 if going alone
+        team2Score = euchreState.isGoingAlone ? 4 : 1;
         winningTeam = 1;
-        addToGameLog(euchreState, `Team 2 (led by ${makerName}) made their bid. +1 point`);
+        if (euchreState.isGoingAlone) {
+          addToGameLog(euchreState, `Team 2 (${makerName} going alone) made their bid! +4 points`);
+        } else {
+          addToGameLog(euchreState, `Team 2 (led by ${makerName}) made their bid. +1 point`);
+        }
       }
     } else {
       team1Score = 2; // Euchre (failed to make bid) = 2 points for opponents
       winningTeam = 0;
-      addToGameLog(euchreState, `Team 2 was euchred! Team 1 gets +2 points. Maker: ${makerName}`);
+      if (euchreState.isGoingAlone) {
+        addToGameLog(euchreState, `Team 2 was euchred going alone! Team 1 gets +2 points. Maker: ${makerName}`);
+      } else {
+        addToGameLog(euchreState, `Team 2 was euchred! Team 1 gets +2 points. Maker: ${makerName}`);
+      }
     }
   }
   
@@ -1371,25 +1572,6 @@ function processHandScoring(io, roomId) {
   // Add a log showing current scores
   addToGameLog(euchreState, `Current Scores - Team 1: ${euchreState.teamScores[0]}, Team 2: ${euchreState.teamScores[1]}`);
   
-  // Determine the lead position for the next round
-  // If the team that made the bid won, their next partner leads
-  // If the defending team won, a player from that team leads
-  let nextLeadSeatNumber = null;
-  
-  if (winningTeam === makerTeam) {
-    // If maker's team won, find their partner's seat
-    nextLeadSeatNumber = makerSeatNumber === 1 ? 3 : 
-                         makerSeatNumber === 3 ? 1 : 
-                         makerSeatNumber === 2 ? 4 : 3;
-  } else {
-    // If defending team won, find a seat from that team
-    const defendingTeamSeats = makerTeam === 0 ? [2, 4] : [1, 3];
-    nextLeadSeatNumber = defendingTeamSeats[Math.floor(Math.random() * defendingTeamSeats.length)];
-  }
-  
-  // Store the next lead position
-  euchreState.nextLeadSeat = nextLeadSeatNumber;
-  
   // Check if game is over (first to 10 points)
   if (euchreState.teamScores[0] >= 10 || euchreState.teamScores[1] >= 10) {
     // Game over
@@ -1399,40 +1581,63 @@ function processHandScoring(io, roomId) {
   } else {
     // Prepare for next hand with a delay to show final state
     setTimeout(() => {
-      prepareNextHand(euchreState, room);
+      prepareNextHand(io, euchreState, room);
       
       // Broadcast updated state
       broadcastGameState(io, roomId);
     }, 3000); // 3-second delay to show final scores
-    
-    // Broadcast current final state before preparing next hand
-    broadcastGameState(io, roomId);
-    return;
   }
   
-  // Broadcast final state
+  // Broadcast current final state before preparing next hand
   broadcastGameState(io, roomId);
 }
 
 // Prepare for the next hand
-function prepareNextHand(euchreState, room) {
+function prepareNextHand(io, euchreState, room) {
   // Move dealer position
   euchreState.dealerPosition = (euchreState.dealerPosition + 1) % 4;
   
-  // Reset game state for new hand
-  euchreState.gamePhase = 'idle';
+  // Reset game state for new hand but preserve scores
+  euchreState.gamePhase = 'bidding1'; // Changed from 'idle' to auto-continue
   euchreState.currentTrick = [];
   euchreState.trumpSuit = null;
   euchreState.maker = null;
   euchreState.bidsMade = 0;
+  euchreState.isGoingAlone = false;
+  euchreState.alonePlayer = null;
   
   // Reset tricks won
   for (const playerId of room.seatedPlayers) {
     euchreState.tricksWon[playerId] = 0;
   }
   
-  addToGameLog(euchreState, 'Ready for next hand. Click Deal to continue.');
+  addToGameLog(euchreState, 'Next hand starting automatically. Dealer moved.');
+  
+  // Automatically deal new hand
+  createDeck(euchreState);
+  shuffleDeck(euchreState);
+  dealCards(euchreState, room);
+  
+  // Set first bidder (player to left of dealer)
+  const dealerSeat = (euchreState.dealerPosition % 4) + 1;
+  const firstSeat = dealerSeat < 4 ? dealerSeat + 1 : 1;
+  const firstPlayerId = room.playerSeats[firstSeat];
+  
+  if (firstPlayerId) {
+    euchreState.currentPlayer = firstPlayerId;
+    euchreState.firstPositionId = firstPlayerId; // Set first position
+  }
+  
+  // If the first player is a CPU, handle their turn after a short delay
+  if (firstPlayerId && firstPlayerId.startsWith('cpu_')) {
+    setTimeout(() => {
+      if (room.euchre && room.euchre.currentPlayer === firstPlayerId) {
+        handleCPUTurns(io, room.roomId);
+      }
+    }, 2000);
+  }
 }
+
 
 
 // CPU bidding logic
@@ -1451,8 +1656,121 @@ function cpuBid(io, roomId, cpuId) {
     roomId: roomId 
   };
   
-  // Pass the mock socket instead of just the cpuId
-  handleEuchreBid(io, mockSocket, { action: 'pass' });
+  // Get the CPU's hand
+  const hand = euchreState.hands[cpuId] || [];
+  
+  // Decide whether to bid based on hand strength
+  if (euchreState.gamePhase === 'bidding1') {
+    // Count cards of the turn-up suit and bowers
+    if (euchreState.turnUpCard) {
+      const trumpSuit = euchreState.turnUpCard.suit;
+      const leftBowerSuit = getLeftBowerSuit(trumpSuit);
+      
+      let trumpCount = 0;
+      let hasRightBower = false;
+      let hasLeftBower = false;
+      let hasAce = false;
+      
+      hand.forEach(card => {
+        if (card.suit === trumpSuit) {
+          trumpCount++;
+          if (card.rank === 'J') hasRightBower = true;
+          if (card.rank === 'A') hasAce = true;
+        }
+        if (card.suit === leftBowerSuit && card.rank === 'J') {
+          hasLeftBower = true;
+          trumpCount++; // Count left bower as trump
+        }
+      });
+      
+      // CPU strategy: Order up with 3+ trump, or with right bower, or with left bower and another trump
+      if (trumpCount >= 3 || hasRightBower || (hasLeftBower && trumpCount >= 2) || (hasAce && trumpCount >= 2)) {
+        // Order up with a small chance of going alone if hand is exceptional
+        const goAlone = hasRightBower && hasLeftBower && trumpCount >= 4;
+        
+        if (goAlone) {
+          console.log(`CPU ${cpuId} ordering up ${trumpSuit} and going alone`);
+          handleEuchreBid(io, mockSocket, { 
+            action: 'orderUpAlone',
+            suit: trumpSuit 
+          });
+        } else {
+          console.log(`CPU ${cpuId} ordering up ${trumpSuit}`);
+          handleEuchreBid(io, mockSocket, { 
+            action: 'orderUp',
+            suit: trumpSuit 
+          });
+        }
+        return;
+      }
+    }
+    
+    // If we get here, the CPU passes
+    console.log(`CPU ${cpuId} passing in bidding1`);
+    handleEuchreBid(io, mockSocket, { action: 'pass' });
+  }
+  else if (euchreState.gamePhase === 'bidding2') {
+    // In bidding2, CPU needs to call a suit if it has a strong suit
+    const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
+    const disallowedSuit = euchreState.turnUpCard ? euchreState.turnUpCard.suit : null;
+    
+    let bestSuit = null;
+    let bestSuitCount = 0;
+    let hasJackInBestSuit = false;
+    
+    suits.forEach(suit => {
+      if (suit !== disallowedSuit) {
+        const leftBowerSuit = getLeftBowerSuit(suit);
+        
+        let suitCount = 0;
+        let hasRightBower = false;
+        let hasLeftBower = false;
+        
+        hand.forEach(card => {
+          if (card.suit === suit) {
+            suitCount++;
+            if (card.rank === 'J') hasRightBower = true;
+          }
+          if (card.suit === leftBowerSuit && card.rank === 'J') {
+            hasLeftBower = true;
+            suitCount++;
+          }
+        });
+        
+        if (suitCount > bestSuitCount || 
+            (suitCount === bestSuitCount && (hasRightBower || hasLeftBower) && !hasJackInBestSuit)) {
+          bestSuit = suit;
+          bestSuitCount = suitCount;
+          hasJackInBestSuit = hasRightBower || hasLeftBower;
+        }
+      }
+    });
+    
+    // CPU strategy: Call a suit with 3+ cards of that suit, or with a bower
+    if (bestSuitCount >= 3 || hasJackInBestSuit) {
+      // Call with a small chance of going alone if hand is exceptional
+      const goAlone = hasJackInBestSuit && bestSuitCount >= 4;
+      
+      if (goAlone) {
+        console.log(`CPU ${cpuId} calling ${bestSuit} and going alone`);
+        handleEuchreBid(io, mockSocket, { 
+          action: 'callSuitAlone',
+          suit: bestSuit 
+        });
+      } else {
+        console.log(`CPU ${cpuId} calling ${bestSuit}`);
+        handleEuchreBid(io, mockSocket, { 
+          action: 'callSuit',
+          suit: bestSuit 
+        });
+      }
+      return;
+    }
+    
+    // If we get here, the CPU passes
+    console.log(`CPU ${cpuId} passing in bidding2`);
+    handleEuchreBid(io, mockSocket, { action: 'pass' });
+  }
 }
 
 // CPU card playing logic
@@ -1561,19 +1879,12 @@ function handleEuchrePlayCard(io, socket, cardIndex) {
       const leadSuit = getEffectiveSuit(leadCard, euchreState.trumpSuit);
       const cardSuit = getEffectiveSuit(card, euchreState.trumpSuit);
       
-      // Get left bower suit
-      const leftBowerSuit = getLeftBowerSuit(euchreState.trumpSuit);
+      // Check if player has any cards of the lead suit (accounting for effective suit)
+      const hasSuit = hand.some(c => getEffectiveSuit(c, euchreState.trumpSuit) === leadSuit);
       
-      // Check if player has any cards of the lead suit, including left and right bowers
-      const hasSuit = hand.some(c => {
-        const effectiveSuit = getEffectiveSuit(c, euchreState.trumpSuit);
-        return effectiveSuit === leadSuit || 
-               (c.rank === 'J' && (c.suit === leadSuit || c.suit === leftBowerSuit));
-      });
-      
-      if (hasSuit && cardSuit !== leadSuit && 
-          !(card.rank === 'J' && (card.suit === leadSuit || card.suit === leftBowerSuit))) {
+      if (hasSuit && cardSuit !== leadSuit) {
         console.error(`Player must follow suit ${leadSuit}`);
+        socket.emit('cardError', { message: `You must follow ${leadSuit} if possible` });
         return; // Cannot play this card, must follow suit if possible
       }
     }
@@ -1604,6 +1915,7 @@ function handleEuchrePlayCard(io, socket, cardIndex) {
     console.error('Error in handleEuchrePlayCard:', error);
   }
 }
+
 
 // Check if CPU needs to make a move
 function checkForCPUTurn(io, roomId) {
