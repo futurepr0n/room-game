@@ -769,40 +769,19 @@ function handleCPUTurns(io, roomId) {
 
 function handleCPUCardPlay(io, roomId, cpuId) {
   try {
-    console.log(`CPU ${cpuId} is playing a card...`);
-    
     const room = roomStates[roomId];
-    if (!room || !room.gameActive || room.gameType !== 'euchre') {
-      console.error('Invalid room for CPU card play');
-      return;
-    }
+    if (!room) return;
     
     const euchreState = room.euchre;
-    if (!euchreState || euchreState.gamePhase !== 'playing') {
-      console.error('Invalid game state for CPU card play');
-      return;
-    }
-    
-    // Make sure it's this CPU's turn
-    if (euchreState.currentPlayer !== cpuId) {
-      console.error(`Not CPU ${cpuId}'s turn to play`);
-      return;
-    }
+    if (!euchreState) return;
     
     // Get CPU's hand
     const hand = euchreState.hands[cpuId];
-    if (!hand || hand.length === 0) {
-      console.error(`CPU ${cpuId} has no cards to play`);
-      return;
-    }
+    if (!hand || hand.length === 0) return;
     
-    console.log(`CPU ${cpuId} hand:`, hand);
-    
-    // Select which card to play
-    const cardIndex = selectCardToPlay(hand, euchreState, cpuId, room);
+    // Select a card (simplest approach - just pick the first one)
+    const cardIndex = 0; 
     const card = hand[cardIndex];
-    
-    console.log(`CPU ${cpuId} playing card:`, card);
     
     // Add card to current trick
     euchreState.currentTrick.push({
@@ -810,19 +789,19 @@ function handleCPUCardPlay(io, roomId, cpuId) {
       card: card
     });
     
+    // If this is the first card in the trick, set it as the lead suit
+    if (euchreState.currentTrick.length === 1) {
+      euchreState.leadSuit = card.suit;
+    }
+    
     // Remove the card from CPU's hand
     euchreState.hands[cpuId].splice(cardIndex, 1);
     
     // Add to game log
     addToGameLog(euchreState, `${room.playerNames[cpuId]} played ${card.rank} of ${card.suit}`);
     
-    // Send update to all players
-    broadcastToAll({
-      type: "game_action",
-      action: "play_card",
-      player: cpuId,
-      card: card
-    });
+    // Broadcast updated state
+    broadcastGameState(io, roomId);
     
     // Process next player in trick
     processNextTrickPlayer(io, roomId);
