@@ -583,8 +583,8 @@ function handleEuchreBid(io, socket, bid) {
     } catch (error) {
       console.error('Error broadcasting game state:', error);
     }
-    
     // Schedule CPU turns if needed
+
     if (euchreState.currentPlayer && euchreState.currentPlayer.startsWith('cpu_')) {
       console.log(`Scheduling CPU turn for ${euchreState.currentPlayer}`);
       
@@ -594,36 +594,8 @@ function handleEuchreBid(io, socket, bid) {
         if (room.euchre && room.euchre.currentPlayer === euchreState.currentPlayer) {
           console.log(`CPU ${euchreState.currentPlayer} taking turn`);
           
-          if (euchreState.gamePhase === 'bidding1' || euchreState.gamePhase === 'bidding2') {
-            // Simple CPU bidding strategy
-            const shouldBid = Math.random() < 0.4; // 40% chance to bid
-            
-            if (shouldBid) {
-              if (euchreState.gamePhase === 'bidding1') {
-                handleEuchreBid(io, euchreState.currentPlayer, {
-                  action: 'orderUp',
-                  suit: euchreState.turnUpCard.suit
-                });
-              } else {
-                // Pick a random suit other than turn-up suit
-                const suits = ['hearts', 'diamonds', 'clubs', 'spades'].filter(
-                  s => s !== euchreState.turnUpCard.suit
-                );
-                const selectedSuit = suits[Math.floor(Math.random() * suits.length)];
-                
-                handleEuchreBid(io, euchreState.currentPlayer, {
-                  action: 'callSuit',
-                  suit: selectedSuit
-                });
-              }
-            } else {
-              // Pass
-              handleEuchreBid(io, euchreState.currentPlayer, { action: 'pass' });
-            }
-          } else if (euchreState.gamePhase === 'playing') {
-            // Handle CPU card play (would need separate implementation)
-            handleCPUCardPlay(io, roomId, euchreState.currentPlayer);
-          }
+          // Let the handleCPUTurns function handle the CPU logic
+          handleCPUTurns(io, roomId);
         }
       }, 1500);
     }
