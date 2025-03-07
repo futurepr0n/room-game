@@ -1,6 +1,7 @@
 const { handleSitAtTable, handleStandFromTable, handleDisconnect, getActiveRooms, createRoom, roomStates, updateActiveRooms } = require('./roomLogic');
 const { startGame, rollDice } = require('./gameLogic');
-const { startEuchreGame, handleEuchreBid, handleEuchrePlayCard, getFilteredGameState, broadcastGameState } = require('./euchreLogic');
+const { startEuchreGame, handleEuchreBid, handleEuchrePlayCard, checkForCPUTurn, broadcastGameState, getFilteredGameState } = require('./euchreLogic');
+
 
 function setupSocket(io) {
   io.on('connection', (socket) => {
@@ -63,10 +64,24 @@ function setupSocket(io) {
       if (room.gameActive) {
         if (room.gameType === 'euchre' && room.euchre) {
           console.log('Sending euchre game state to new player:', socket.id);
-          socket.emit('euchreGameState', {
-            gameState: getFilteredGameState(room.euchre, room),
-            roomState: room
-          });
+          
+          try {
+            // Use a safer approach with error handling
+            if (typeof getFilteredGameState === 'function') {
+              socket.emit('euchreGameState', {
+                gameState: getFilteredGameState(room.euchre, room),
+                roomState: room
+              });
+            } else {
+              // Fallback if function is not available
+              console.log('getFilteredGameState not available, using broadcastGameState instead');
+              broadcastGameState(io, roomId);
+            }
+          } catch (error) {
+            console.error('Error sending game state to new player:', error);
+            // Fallback to just sending room update
+            socket.emit('updateRoom', room);
+          }
         } else {
           // For other game types
           socket.emit('updateRoom', room);

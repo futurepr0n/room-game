@@ -423,21 +423,24 @@ function handleEuchreBid(io, socket, bid) {
     }
   }
   
+  
   // Log the current player
   console.log('Current player is now:', euchreState.currentPlayer);
   
   // Update game state for all players
-  io.to(roomId).emit('euchreGameState', { 
-    gameState: getFilteredGameState(euchreState, room),
-    roomState: room 
-  });
-  
-  // Check if next player is CPU
+  broadcastGameState(io, roomId);
+    
+  // Check if next player is CPU and handle their turn after a short delay
   if (euchreState.currentPlayer && euchreState.currentPlayer.startsWith('cpu_')) {
     console.log(`Scheduling CPU turn for ${euchreState.currentPlayer}`);
+    
+    // Use a longer delay to avoid multiple CPU turns triggering at once
     setTimeout(() => {
+      console.log(`Executing CPU turn for ${euchreState.currentPlayer}`);
       handleCPUTurns(io, roomId);
-    }, 1500);
+    }, 2000);
+  } else {
+    console.log(`Next player is not a CPU: ${euchreState.currentPlayer}`);
   }
 }
 
@@ -516,8 +519,10 @@ function determineMakerTeam(euchreState, room) {
   return (makerSeatNum === 1 || makerSeatNum === 3) ? 0 : 1;
 }
 
-// Handle CPU actions
+// Improved handleCPUTurns function
 function handleCPUTurns(io, roomId) {
+  console.log(`handleCPUTurns called for room ${roomId}`);
+  
   const room = roomStates[roomId];
   if (!room || !room.gameActive || room.gameType !== 'euchre') {
     console.error('Invalid room for CPU turn');
@@ -537,6 +542,8 @@ function handleCPUTurns(io, roomId) {
     return;
   }
 
+  console.log(`Current player in handleCPUTurns: ${currentPlayerId}`);
+  
   if (!currentPlayerId.startsWith('cpu_')) {
     console.log('Not a CPU turn:', currentPlayerId);
     return;
@@ -544,7 +551,20 @@ function handleCPUTurns(io, roomId) {
   
   console.log(`CPU turn for player: ${currentPlayerId} in phase: ${euchreState.gamePhase}`);
   
-  // Delay the CPU move to make it feel more natural
+  // Prevent potential race conditions with multiple CPU turns
+  const now = Date.now();
+  if (!room.cpuLastTurnTime) room.cpuLastTurnTime = {};
+  const lastTurnTime = room.cpuLastTurnTime[currentPlayerId] || 0;
+  
+  if (now - lastTurnTime < 3000) {
+    console.log(`Skipping duplicate CPU turn for ${currentPlayerId}, last turn was ${now - lastTurnTime}ms ago`);
+    return;
+  }
+  
+  // Mark this CPU's turn
+  room.cpuLastTurnTime[currentPlayerId] = now;
+  
+  // Add a small delay to make it seem like the CPU is "thinking"
   setTimeout(() => {
     try {
       // Handle different game phases
@@ -690,10 +710,16 @@ function cpuPlayCard(io, roomId, cpuId) {
 // Check if CPU needs to make a move
 function checkForCPUTurn(io, roomId) {
   const room = roomStates[roomId];
-  if (!room || !room.gameActive) return;
+  if (!room || !room.gameActive) {
+    console.log('Room not active, skipping CPU turn check');
+    return;
+  }
   
   const euchreState = room.euchre;
-  if (!euchreState) return;
+  if (!euchreState) {
+    console.log('No euchre state, skipping CPU turn check');
+    return;
+  }
   
   // If no current player is set, try to recover
   if (!euchreState.currentPlayer && room.seatedPlayers.length > 0) {
@@ -706,7 +732,10 @@ function checkForCPUTurn(io, roomId) {
   }
   
   const currentPlayerId = euchreState.currentPlayer;
-  if (!currentPlayerId) return;
+  if (!currentPlayerId) {
+    console.log('No current player ID, skipping CPU turn check');
+    return;
+  }
   
   // Check if it's a CPU player's turn
   if (currentPlayerId.startsWith('cpu_')) {
@@ -717,14 +746,25 @@ function checkForCPUTurn(io, roomId) {
     if (!room.cpuLastTurnTime) room.cpuLastTurnTime = {};
     const lastTurnTime = room.cpuLastTurnTime[currentPlayerId] || 0;
     
-    if (now - lastTurnTime > 2000) { // Only trigger if it's been more than 2 seconds
+    if (now - lastTurnTime > 5000) { // Only trigger if it's been more than 5 seconds
       // Track the last turn time
       room.cpuLastTurnTime[currentPlayerId] = now;
       
+      console.log(`Scheduling CPU turn for ${currentPlayerId} after delay`);
       // Add small delay to make it seem like the CPU is "thinking"
       setTimeout(() => {
-        handleCPUTurns(io, roomId);
-      }, 1500);
+        console.log(`Executing scheduled CPU turn for ${currentPlayerId}`);
+        try {
+          handleCPUTurns(io, roomId);
+        } catch (error) {
+          console.error('Error executing CPU turn:', error);
+          // Try to recover by passing if in bidding phase
+          if (euchreState.gamePhase === 'bidding1' || euchreState.gamePhase === 'bidding2') {
+            console.log('Recovery attempt: Making CPU pass after error');
+            handleEuchreBid(io, currentPlayerId, { action: 'pass' });
+          }
+        }
+      }, 2000);
     } else {
       console.log(`Skipping duplicate CPU turn for ${currentPlayerId}, last turn was ${now - lastTurnTime}ms ago`);
     }
