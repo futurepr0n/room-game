@@ -4,7 +4,7 @@
  */
 
 const { roomStates } = require('./roomLogic');
-const { getEffectiveSuit, getCardValue, compareCards, getCurrentWinningPlay } = require('./euchreCardUtils');
+const { getEffectiveSuit, getCardValue, compareCards } = require('./euchreCardUtils');
 const { broadcastGameState, addToGameLog } = require('./euchreGameCore');
 const { processCPUTurn } = require('./euchreCPU');
 
@@ -289,6 +289,6 @@ module.exports = {
   processNextPlayer,
   processCompletedTrick,
   getPlayerTeam,
-  //getCurrentWinningPlay,
+  getCurrentWinningPlay,
   arePartners
-} = require('./euchreCardUtils');
+}; 
