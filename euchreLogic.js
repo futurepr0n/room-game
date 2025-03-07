@@ -753,14 +753,12 @@ function handleCPUTurns(io, roomId) {
   // Mark this CPU's turn
   room.cpuLastTurnTime[currentPlayerId] = now;
   
-  // CRITICAL FIX: Call the appropriate function directly with the CPU ID as a string
+  // Call the appropriate function based on game phase
   if (euchreState.gamePhase === 'bidding1' || euchreState.gamePhase === 'bidding2') {
-    // Call cpuBid directly with the current player ID
     cpuBid(io, roomId, currentPlayerId);
   } 
   else if (euchreState.gamePhase === 'playing') {
-    // Call cpuPlayCard directly with the current player ID
-    cpuPlayCard(io, roomId, currentPlayerId);
+    handleCPUCardPlay(io, roomId, currentPlayerId);
   }
 }
 
@@ -769,19 +767,44 @@ function handleCPUTurns(io, roomId) {
 
 function handleCPUCardPlay(io, roomId, cpuId) {
   try {
+    // Create a mock socket for consistent parameter handling
+    const mockSocket = {
+      id: cpuId,
+      roomId: roomId
+    };
+    
     const room = roomStates[roomId];
-    if (!room) return;
+    if (!room || !room.gameActive || room.gameType !== 'euchre') {
+      console.error('Invalid room for CPU card play');
+      return;
+    }
     
     const euchreState = room.euchre;
-    if (!euchreState) return;
+    if (!euchreState || euchreState.gamePhase !== 'playing') {
+      console.error('Invalid game state for CPU card play');
+      return;
+    }
+    
+    // Make sure it's this CPU's turn
+    if (euchreState.currentPlayer !== cpuId) {
+      console.error(`Not CPU ${cpuId}'s turn to play`);
+      return;
+    }
     
     // Get CPU's hand
     const hand = euchreState.hands[cpuId];
-    if (!hand || hand.length === 0) return;
+    if (!hand || hand.length === 0) {
+      console.error(`CPU ${cpuId} has no cards to play`);
+      return;
+    }
     
-    // Select a card (simplest approach - just pick the first one)
-    const cardIndex = 0; 
+    console.log(`CPU ${cpuId} hand:`, hand);
+    
+    // Select the first card for simplicity
+    const cardIndex = 0;
     const card = hand[cardIndex];
+    
+    console.log(`CPU ${cpuId} playing card:`, card);
     
     // Add card to current trick
     euchreState.currentTrick.push({
@@ -1351,8 +1374,14 @@ function cpuBid(io, roomId, cpuId) {
   
   console.log(`CPU ${cpuId} is bidding`);
   
-  // Always pass for now (simple but guaranteed to work)
-  handleEuchreBid(io, cpuId, { action: 'pass' });
+  // Create a mock socket object with the necessary properties
+  const mockSocket = { 
+    id: cpuId, 
+    roomId: roomId 
+  };
+  
+  // Pass the mock socket instead of just the cpuId
+  handleEuchreBid(io, mockSocket, { action: 'pass' });
 }
 
 // CPU card playing logic
