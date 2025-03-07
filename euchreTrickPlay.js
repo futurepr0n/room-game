@@ -291,4 +291,4 @@ module.exports = {
   getPlayerTeam,
   getCurrentWinningPlay,
   arePartners
-};
+} = require('./euchreCardUtils');
