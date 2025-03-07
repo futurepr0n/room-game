@@ -1540,7 +1540,6 @@ function checkForCPUTurn(io, roomId) {
 module.exports = {
   startEuchreGame,
   handleEuchreBid,
-  handleEuchrePlayCard,
   checkForCPUTurn,
   fillEmptySeatsWithCPUs,
   broadcastGameState,
