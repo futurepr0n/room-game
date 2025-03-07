@@ -712,28 +712,24 @@ function handleCPUTurns(io, roomId) {
   
   console.log(`CPU turn for player: ${currentPlayerId} in phase: ${euchreState.gamePhase}`);
   
-  // Prevent potential race conditions with multiple CPU turns
-  const now = Date.now();
+  // Initialize timestamp tracking if needed
   if (!room.cpuLastTurnTime) room.cpuLastTurnTime = {};
-  const lastTurnTime = room.cpuLastTurnTime[currentPlayerId] || 0;
   
-  if (now - lastTurnTime < 3000) {
-    console.log(`Skipping duplicate CPU turn for ${currentPlayerId}, last turn was ${now - lastTurnTime}ms ago`);
-    return;
-  }
-  
-  // Mark this CPU's turn
-  room.cpuLastTurnTime[currentPlayerId] = now;
-  
+  // Process the turn without duplicate checking first time
   // Call the appropriate function based on game phase
   if (euchreState.gamePhase === 'bidding1' || euchreState.gamePhase === 'bidding2') {
+    console.log(`CPU ${currentPlayerId} is making a bid decision`);
+    // Set timestamp AFTER making the decision
+    room.cpuLastTurnTime[currentPlayerId] = Date.now();
     cpuBid(io, roomId, currentPlayerId);
   } 
   else if (euchreState.gamePhase === 'playing') {
+    console.log(`CPU ${currentPlayerId} is making a card play decision`);
+    // Set timestamp AFTER making the decision
+    room.cpuLastTurnTime[currentPlayerId] = Date.now();
     handleCPUCardPlay(io, roomId, currentPlayerId);
   }
 }
-
 // Add this function to the end of your handleEuchreBid implementation
 // for CPU card playing logic during the playing phase
 
@@ -1490,5 +1486,6 @@ module.exports = {
   getFilteredGameState,
   handleCPUCardPlay,
   cpuBid,
-  cpuPlayCard
+  cpuPlayCard,
+  handleCPUTurns
 };
