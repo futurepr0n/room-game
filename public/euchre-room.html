@@ -70,19 +70,27 @@
       <div id="game-info" class="game-info">
         <p id="info-text">Welcome to Euchre! Click Deal to start.</p>
         <div id="bidding-controls" style="display: none; margin-top: 10px;">
-          <button id="order-up">Order Up</button>
-          <button id="order-up-alone">Order Up Alone</button>
+          <div class="bid-row">
+            <button id="order-up">Order Up</button>
+            <input type="checkbox" id="go-alone-checkbox" />
+            <label for="go-alone-checkbox">Go Alone</label>
+          </div>
           <button id="pass-bid">Pass</button>
         </div>
+        
         <div id="suit-selection" style="display: none; margin-top: 10px;">
-          <button class="suit-btn" data-suit="hearts">Hearts ♥</button>
-          <button class="suit-btn" data-suit="diamonds">Diamonds ♦</button>
-          <button class="suit-btn" data-suit="clubs">Clubs ♣</button>
-          <button class="suit-btn" data-suit="spades">Spades ♠</button>
-          <button id="call-alone">Go Alone</button>
+          <div class="suit-options">
+            <button class="suit-btn" data-suit="hearts">Hearts ♥</button>
+            <button class="suit-btn" data-suit="diamonds">Diamonds ♦</button>
+            <button class="suit-btn" data-suit="clubs">Clubs ♣</button>
+            <button class="suit-btn" data-suit="spades">Spades ♠</button>
+          </div>
+          <div class="bid-row">
+            <input type="checkbox" id="call-alone-checkbox" />
+            <label for="call-alone-checkbox">Go Alone</label>
+          </div>
           <button id="pass-suit">Pass</button>
         </div>
-      </div>
       
       <div id="trump-indicator" class="trump-indicator" style="display: none;">
         Trump: <span id="trump-suit"></span>

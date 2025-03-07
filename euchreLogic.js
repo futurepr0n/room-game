@@ -549,14 +549,22 @@ function handleEuchreBid(io, socket, bid) {
           euchreState.bidsMade = 0;
           
           // First player after dealer starts bidding (using seat numbers)
-          const dealerPos = euchreState.dealerPosition;
-          const dealerSeat = (dealerPos % 4) + 1;
+          const dealerSeat = (euchreState.dealerPosition % 4) + 1;
           const firstSeat = dealerSeat < 4 ? dealerSeat + 1 : 1;
-          const nextPlayerId = room.playerSeats[firstSeat];
+          const firstPlayerId = room.playerSeats[firstSeat];
           
-          if (nextPlayerId) {
-            euchreState.currentPlayer = nextPlayerId;
-            euchreState.firstPositionId = nextPlayerId; // Set first position
+          if (firstPlayerId) {
+            euchreState.currentPlayer = firstPlayerId;
+            euchreState.firstPositionId = firstPlayerId;
+            
+            // If first player is CPU, schedule their turn
+            if (firstPlayerId.startsWith('cpu_')) {
+              setTimeout(() => {
+                if (room.euchre && room.euchre.currentPlayer === firstPlayerId) {
+                  handleCPUTurns(io, roomId);
+                }
+              }, 2000);
+            }
           }
         }
       }
@@ -904,6 +912,15 @@ function selectLeadCard(hand, euchreState, cpuId, room) {
   
   // If we only have trump cards, lead the lowest one
   return findLowestCard(hand, euchreState.trumpSuit);
+}
+
+// Helper function to check if two suits are the same color
+function isSameColor(suit1, suit2) {
+  const redSuits = ['hearts', 'diamonds'];
+  const blackSuits = ['clubs', 'spades'];
+  
+  return (redSuits.includes(suit1) && redSuits.includes(suit2)) || 
+         (blackSuits.includes(suit1) && blackSuits.includes(suit2));
 }
 
 // Helper function to check if partner is winning the current trick
@@ -1283,12 +1300,13 @@ function getCardRankValue(card, trumpSuit) {
 
 // Get the effective suit of a card (accounting for bowers)
 function getEffectiveSuit(card, trumpSuit) {
-  // Left bower counts as trump suit
-  if (card.rank === 'J' && card.suit === getLeftBowerSuit(trumpSuit)) {
+  // Left bower (Jack of same color suit) counts as trump
+  if (card.rank === 'J' && isSameColor(card.suit, trumpSuit) && card.suit !== trumpSuit) {
     return trumpSuit;
   }
   return card.suit;
 }
+
 
 // Process the next player in the trick
 function processNextTrickPlayer(io, roomId) {
@@ -1632,7 +1650,7 @@ function prepareNextHand(io, euchreState, room) {
   if (firstPlayerId && firstPlayerId.startsWith('cpu_')) {
     setTimeout(() => {
       if (room.euchre && room.euchre.currentPlayer === firstPlayerId) {
-        handleCPUTurns(io, room.roomId);
+        handleCPUTurns(io, roomId);
       }
     }, 2000);
   }

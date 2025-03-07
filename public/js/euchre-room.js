@@ -107,12 +107,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     orderUpBtn.addEventListener('click', function() {
       if (gameState && gameState.turnUpCard) {
-        console.log('Order up button clicked with suit:', gameState.turnUpCard.suit);
+        const goAlone = document.getElementById('go-alone-checkbox').checked;
+        console.log(`Order up button clicked with suit: ${gameState.turnUpCard.suit}, go alone: ${goAlone}`);
         socket.emit('euchreBid', { 
-          action: 'orderUp', 
+          action: goAlone ? 'orderUpAlone' : 'orderUp',
           suit: gameState.turnUpCard.suit 
         });
-        logEvent(`You ordered up ${gameState.turnUpCard.suit}`);
+        logEvent(`You ordered up ${gameState.turnUpCard.suit}${goAlone ? ' and are going alone!' : ''}`);
       }
     });
     
@@ -148,12 +149,15 @@ document.addEventListener('DOMContentLoaded', function() {
       this.classList.add('selected');
       selectedSuit = this.dataset.suit;
       
-      // Regular call suit - we'll let the Go Alone button handle alone calls
+      // Check if going alone
+      const goAlone = document.getElementById('call-alone-checkbox').checked;
+      
+      // Call suit with the alone option
       socket.emit('euchreBid', { 
-        action: 'callSuit', 
+        action: goAlone ? 'callSuitAlone' : 'callSuit',
         suit: selectedSuit 
       });
-      logEvent(`You called ${selectedSuit} as trump`);
+      logEvent(`You called ${selectedSuit} as trump${goAlone ? ' and are going alone!' : ''}`);
     });
   });
   
