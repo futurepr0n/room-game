@@ -1470,7 +1470,7 @@ function cpuPlayCard(io, roomId, cpuId) {
   }
   
   // Play the selected card
-  handleEuchrePlayCard(io, cpuId, cardIndex);
+  handleCPUCardPlay(io, cpuId, cardIndex);
 }
 
 // Check if CPU needs to make a move
