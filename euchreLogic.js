@@ -443,7 +443,13 @@ function handleEuchreBid(io, socket, bid) {
         
         if (currentSeatNum) {
           // Calculate next seat number (wrapping around from 4 to 1)
-          const nextSeatNum = currentSeatNum < 4 ? currentSeatNum + 1 : 1;
+          //const nextSeatNum = currentSeatNum < 4 ? currentSeatNum + 1 : 1;
+          let nextSeatNum;
+          if (currentSeatNum === 1) nextSeatNum = 4;
+          else if (currentSeatNum === 4) nextSeatNum = 3;
+          else if (currentSeatNum === 3) nextSeatNum = 2;
+          else if (currentSeatNum === 2) nextSeatNum = 1;
+          else nextSeatNum = 1;
           console.log('Next seat number:', nextSeatNum);
           
           // Get player ID at that seat
@@ -519,7 +525,13 @@ function handleEuchreBid(io, socket, bid) {
         }
         
         if (currentSeatNum) {
-          const nextSeatNum = currentSeatNum < 4 ? currentSeatNum + 1 : 1;
+          //const nextSeatNum = currentSeatNum < 4 ? currentSeatNum + 1 : 1;
+          let nextSeatNum;
+          if (currentSeatNum === 1) nextSeatNum = 4;
+          else if (currentSeatNum === 4) nextSeatNum = 3;
+          else if (currentSeatNum === 3) nextSeatNum = 2;
+          else if (currentSeatNum === 2) nextSeatNum = 1;
+          else nextSeatNum = 1;
           const nextPlayerId = room.playerSeats[nextSeatNum];
           if (nextPlayerId) {
             euchreState.currentPlayer = nextPlayerId;
@@ -1157,7 +1169,13 @@ function processNextTrickPlayer(io, roomId) {
   }
   
   // Calculate next seat number
-  const nextSeatNum = currentSeatNum < 4 ? currentSeatNum + 1 : 1;
+  //const nextSeatNum = currentSeatNum < 4 ? currentSeatNum + 1 : 1;
+  let nextSeatNum;
+  if (currentSeatNum === 1) nextSeatNum = 4;
+  else if (currentSeatNum === 4) nextSeatNum = 3;
+  else if (currentSeatNum === 3) nextSeatNum = 2;
+  else if (currentSeatNum === 2) nextSeatNum = 1;
+  else nextSeatNum = 1;
   const nextPlayerId = room.playerSeats[nextSeatNum];
   
   if (!nextPlayerId) {
@@ -1470,7 +1488,7 @@ function cpuPlayCard(io, roomId, cpuId) {
   }
   
   // Play the selected card
-  handleCPUCardPlay(io, cpuId, cardIndex);
+  handleCPUCardPlay(io, roomId, cpuId);
 }
 
 // Check if CPU needs to make a move
@@ -1545,5 +1563,6 @@ module.exports = {
   broadcastGameState,
   getFilteredGameState,
   handleCPUCardPlay,
-  cpuBid
+  cpuBid,
+  cpuPlayCard
 };
