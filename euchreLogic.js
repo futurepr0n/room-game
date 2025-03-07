@@ -1413,6 +1413,87 @@ function cpuPlayCard(io, roomId, cpuId) {
   handleCPUCardPlay(io, roomId, cpuId);
 }
 
+function handleEuchrePlayCard(io, socket, cardIndex) {
+  try {
+    const roomId = socket.roomId;
+    const playerId = socket.id;
+    
+    const room = roomStates[roomId];
+    if (!room || !room.gameActive || room.gameType !== 'euchre') {
+      console.error('Invalid room for card play');
+      return;
+    }
+    
+    const euchreState = room.euchre;
+    if (!euchreState || euchreState.gamePhase !== 'playing') {
+      console.error('Invalid game state for card play');
+      return;
+    }
+    
+    // Make sure it's this player's turn
+    if (euchreState.currentPlayer !== playerId) {
+      console.error(`Not player ${playerId}'s turn to play`);
+      return;
+    }
+    
+    // Get player's hand
+    const hand = euchreState.hands[playerId];
+    if (!hand || hand.length === 0) {
+      console.error(`Player ${playerId} has no cards to play`);
+      return;
+    }
+    
+    // Make sure card index is valid
+    if (cardIndex < 0 || cardIndex >= hand.length) {
+      console.error(`Invalid card index: ${cardIndex}`);
+      return;
+    }
+    
+    const card = hand[cardIndex];
+    console.log(`Player ${playerId} playing card:`, card);
+    
+    // Check if player must follow suit
+    if (euchreState.currentTrick.length > 0) {
+      const leadCard = euchreState.currentTrick[0].card;
+      const leadSuit = getEffectiveSuit(leadCard, euchreState.trumpSuit);
+      const cardSuit = getEffectiveSuit(card, euchreState.trumpSuit);
+      
+      // Check if player has any cards of the lead suit
+      const hasSuit = hand.some(c => getEffectiveSuit(c, euchreState.trumpSuit) === leadSuit);
+      
+      if (hasSuit && cardSuit !== leadSuit) {
+        console.error(`Player must follow suit ${leadSuit}`);
+        return; // Cannot play this card, must follow suit if possible
+      }
+    }
+    
+    // Add card to current trick
+    euchreState.currentTrick.push({
+      player: playerId,
+      card: card
+    });
+    
+    // If this is the first card in the trick, set it as the lead suit
+    if (euchreState.currentTrick.length === 1) {
+      euchreState.leadSuit = card.suit;
+    }
+    
+    // Remove the card from player's hand
+    euchreState.hands[playerId].splice(cardIndex, 1);
+    
+    // Add to game log
+    addToGameLog(euchreState, `${room.playerNames[playerId]} played ${card.rank} of ${card.suit}`);
+    
+    // Broadcast updated state
+    broadcastGameState(io, roomId);
+    
+    // Process next player in trick
+    processNextTrickPlayer(io, roomId);
+  } catch (error) {
+    console.error('Error in handleEuchrePlayCard:', error);
+  }
+}
+
 // Check if CPU needs to make a move
 function checkForCPUTurn(io, roomId) {
   const room = roomStates[roomId];
@@ -1487,5 +1568,6 @@ module.exports = {
   handleCPUCardPlay,
   cpuBid,
   cpuPlayCard,
-  handleCPUTurns
+  handleCPUTurns,
+  handleEuchrePlayCard
 };
