@@ -321,18 +321,28 @@ document.addEventListener('DOMContentLoaded', function() {
     newGameBtn.style.display = 'none';
     dealBtn.style.display = 'none';
     
+    // Game info area - show only in specific phases
+    const gameInfo = document.getElementById('game-info');
+    const infoText = document.getElementById('info-text');
+    
     // Only proceed if we have game state
     if (!gameState) return;
     
     // Check if user is a spectator
     const isSpectator = !roomState.seatedPlayers.includes(myPlayerId);
     
-    // Update trump indicator
+    // Update trump indicator position and style
     if (gameState.trumpSuit) {
       trumpIndicator.style.display = 'block';
+      // Position at top right of board
+      trumpIndicator.style.position = 'absolute';
+      trumpIndicator.style.top = '10px';
+      trumpIndicator.style.right = '10px';
+      trumpIndicator.style.zIndex = '100';
+      
       const suitSymbols = {'hearts': '♥', 'diamonds': '♦', 'clubs': '♣', 'spades': '♠'};
       const suitSymbol = suitSymbols[gameState.trumpSuit] || '';
-      trumpSuitText.textContent = `${gameState.trumpSuit.charAt(0).toUpperCase() + gameState.trumpSuit.slice(1)} ${suitSymbol}`;
+      trumpSuitText.textContent = `Trump: ${gameState.trumpSuit.charAt(0).toUpperCase() + gameState.trumpSuit.slice(1)} ${suitSymbol}`;
       
       // Add color class for red suits
       if (gameState.trumpSuit === 'hearts' || gameState.trumpSuit === 'diamonds') {
@@ -346,6 +356,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Handle different game phases
     if (gameState.gamePhase === 'idle') {
+      // Show welcome message
+      gameInfo.style.display = 'block';
       infoText.textContent = 'Welcome to Euchre! Click Deal to start.';
       
       if (!isSpectator) {
@@ -355,6 +367,9 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } 
     else if (gameState.gamePhase === 'bidding1') {
+      // Show bidding info
+      gameInfo.style.display = 'block';
+      
       // For spectators, always show what's happening
       if (isSpectator) {
         const currentPlayerName = roomState.playerNames[gameState.currentPlayer] || 'Unknown';
@@ -364,28 +379,6 @@ document.addEventListener('DOMContentLoaded', function() {
       else if (gameState.currentPlayer === myPlayerId) {
         infoText.textContent = `Do you want to order up ${gameState.turnUpCard.suit}?`;
         biddingControls.style.display = 'block';
-        
-        // Enable/disable going alone option based on dealer
-        // If player is dealer, they're ordering up to themselves
-        let isDealer = false;
-        for (const [seatNum, playerId] of Object.entries(roomState.playerSeats)) {
-          if (playerId === myPlayerId) {
-            const dealerPos = gameState.dealerPosition;
-            const dealerSeat = (dealerPos % 4) + 1;
-            isDealer = (parseInt(seatNum) === dealerSeat);
-            break;
-          }
-        }
-        
-        // Always show the regular order up button
-        if (document.getElementById('order-up')) {
-          document.getElementById('order-up').style.display = 'inline-block';
-        }
-        
-        // Only show alone option when appropriate
-        if (document.getElementById('order-up-alone')) {
-          document.getElementById('order-up-alone').style.display = isDealer ? 'none' : 'inline-block';
-        }
       } else {
         // Another player's turn
         const currentPlayerName = roomState.playerNames[gameState.currentPlayer] || 'Unknown';
@@ -393,6 +386,9 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } 
     else if (gameState.gamePhase === 'bidding2') {
+      // Show bidding info
+      gameInfo.style.display = 'block';
+      
       // For spectators
       if (isSpectator) {
         const currentPlayerName = roomState.playerNames[gameState.currentPlayer] || 'Unknown';
@@ -409,13 +405,8 @@ document.addEventListener('DOMContentLoaded', function() {
             button.disabled = true;
           } else {
             button.disabled = false;
-            // Clear any previous selections
-            button.classList.remove('selected');
           }
         });
-        
-        // Reset the selected suit
-        selectedSuit = null;
       } else {
         // Another player's turn
         const currentPlayerName = roomState.playerNames[gameState.currentPlayer] || 'Unknown';
@@ -423,56 +414,15 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } 
     else if (gameState.gamePhase === 'playing') {
-      // Show going alone indicator when applicable
-      let alonePlayerName = '';
-      if (gameState.isGoingAlone && gameState.alonePlayer) {
-        alonePlayerName = roomState.playerNames[gameState.alonePlayer] || 'Unknown';
-        
-        // Add alone indicator if not already present
-        if (!document.getElementById('alone-indicator')) {
-          const aloneIndicator = document.createElement('div');
-          aloneIndicator.id = 'alone-indicator';
-          aloneIndicator.className = 'alone-indicator';
-          aloneIndicator.textContent = `${alonePlayerName} IS GOING ALONE`;
-          aloneIndicator.style.position = 'absolute';
-          aloneIndicator.style.top = '60px';
-          aloneIndicator.style.left = '50%';
-          aloneIndicator.style.transform = 'translateX(-50%)';
-          aloneIndicator.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
-          aloneIndicator.style.color = 'white';
-          aloneIndicator.style.padding = '5px 10px';
-          aloneIndicator.style.borderRadius = '5px';
-          aloneIndicator.style.zIndex = '1000';
-          aloneIndicator.style.fontWeight = 'bold';
-          
-          const gameContainer = document.querySelector('.game-container');
-          if (gameContainer) {
-            gameContainer.appendChild(aloneIndicator);
-          }
-        }
-      } else {
-        // Remove alone indicator if present but no longer applicable
-        const aloneIndicator = document.getElementById('alone-indicator');
-        if (aloneIndicator) {
-          aloneIndicator.remove();
-        }
-      }
+      // Hide the info box during gameplay - trump indicator takes over
+      gameInfo.style.display = 'none';
       
-      // For spectators
-      if (isSpectator) {
-        const currentPlayerName = roomState.playerNames[gameState.currentPlayer] || 'Unknown';
-        infoText.textContent = `Waiting for ${currentPlayerName} to play...`;
-      }
-      // For active players
-      else if (gameState.currentPlayer === myPlayerId) {
-        infoText.textContent = 'Your turn. Play a card.';
-      } else {
-        // Another player's turn
-        const currentPlayerName = roomState.playerNames[gameState.currentPlayer] || 'Unknown';
-        infoText.textContent = `Waiting for ${currentPlayerName} to play...`;
-      }
+      // Add active player indicator instead
+      highlightActivePlayer();
     } 
     else if (gameState.gamePhase === 'gameover') {
+      // Show game over message
+      gameInfo.style.display = 'block';
       const winningTeam = gameState.teamScores[0] > gameState.teamScores[1] ? 1 : 2;
       infoText.textContent = `Game over! Team ${winningTeam} wins!`;
       
@@ -480,117 +430,45 @@ document.addEventListener('DOMContentLoaded', function() {
         newGameBtn.style.display = 'inline-block';
       }
     }
-    
-    // Remove any existing turn indicators
-    document.querySelectorAll('.turn-indicator').forEach(el => el.remove());
-    
-    // Add turn indicator for current player
-    if (gameState.currentPlayer) {
-      // Find the seat number for the current player
-      let currentSeat = null;
-      for (const [seatNumber, playerId] of Object.entries(roomState.playerSeats)) {
-        if (playerId === gameState.currentPlayer) {
-          currentSeat = parseInt(seatNumber);
-          break;
-        }
-      }
-      
-      if (currentSeat) {
-        // Map seat number to position
-        let position;
-        switch (currentSeat) {
-          case 1: position = 'north'; break;
-          case 2: position = 'west'; break;
-          case 3: position = 'south'; break;
-          case 4: position = 'east'; break;
-        }
-        
-        // Create and position the indicator
-        const indicator = document.createElement('div');
-        indicator.className = 'turn-indicator';
-        indicator.innerHTML = '🔄';
-        
-        const playerArea = document.querySelector(`.player-${position}`);
-        if (playerArea) {
-          playerArea.appendChild(indicator);
-        }
-      }
-    }
-    
-    // Highlight dealer position
-    document.querySelectorAll('.dealer-indicator').forEach(el => el.remove());
-    
-    if (gameState.dealerPosition !== undefined) {
-      const dealerSeat = (gameState.dealerPosition % 4) + 1;
-      let dealerPosition;
-      switch (dealerSeat) {
-        case 1: dealerPosition = 'north'; break;
-        case 2: dealerPosition = 'west'; break;
-        case 3: dealerPosition = 'south'; break;
-        case 4: dealerPosition = 'east'; break;
-      }
-      
-      const dealerArea = document.querySelector(`.player-${dealerPosition}`);
-      if (dealerArea) {
-        const dealerIndicator = document.createElement('div');
-        dealerIndicator.className = 'dealer-indicator';
-        dealerIndicator.textContent = 'DEALER';
-        dealerIndicator.style.position = 'absolute';
-        dealerIndicator.style.bottom = '5px';
-        dealerIndicator.style.right = '5px';
-        dealerIndicator.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-        dealerIndicator.style.color = 'white';
-        dealerIndicator.style.padding = '3px 6px';
-        dealerIndicator.style.borderRadius = '3px';
-        dealerIndicator.style.fontSize = '10px';
-        
-        dealerArea.appendChild(dealerIndicator);
-      }
-    }
-    
-    // Highlight first position player (lead position)
-    document.querySelectorAll('.first-position-indicator').forEach(el => el.remove());
-    
-    if (gameState.firstPositionId) {
-      // Find seat number for first position player
-      let firstSeat = null;
-      for (const [seatNumber, playerId] of Object.entries(roomState.playerSeats)) {
-        if (playerId === gameState.firstPositionId) {
-          firstSeat = parseInt(seatNumber);
-          break;
-        }
-      }
-      
-      if (firstSeat) {
-        let firstPosition;
-        switch (firstSeat) {
-          case 1: firstPosition = 'north'; break;
-          case 2: firstPosition = 'west'; break;
-          case 3: firstPosition = 'south'; break;
-          case 4: firstPosition = 'east'; break;
-        }
-        
-        const firstArea = document.querySelector(`.player-${firstPosition}`);
-        if (firstArea) {
-          const firstIndicator = document.createElement('div');
-          firstIndicator.className = 'first-position-indicator';
-          firstIndicator.textContent = 'LEAD';
-          firstIndicator.style.position = 'absolute';
-          firstIndicator.style.top = '5px';
-          firstIndicator.style.left = '5px';
-          firstIndicator.style.backgroundColor = 'rgba(255, 215, 0, 0.7)';
-          firstIndicator.style.color = 'black';
-          firstIndicator.style.padding = '3px 6px';
-          firstIndicator.style.borderRadius = '3px';
-          firstIndicator.style.fontSize = '10px';
-          firstIndicator.style.fontWeight = 'bold';
-          
-          firstArea.appendChild(firstIndicator);
-        }
-      }
-    }
   }
   
+  function updateStyles() {
+    // Create a style element if it doesn't exist
+    let styleEl = document.getElementById('dynamic-euchre-styles');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'dynamic-euchre-styles';
+      document.head.appendChild(styleEl);
+    }
+    // Update the styles
+  styleEl.textContent = `
+  .trump-indicator {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-size: 16px;
+    color: white;
+    font-weight: bold;
+    z-index: 100;
+  }
+  
+  @keyframes pulse {
+    0% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.7); }
+    50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.9); }
+    100% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.7); }
+  }
+  
+  /* Hide game-info during play but keep it available for welcome and bidding */
+  .game-info {
+    transition: opacity 0.3s ease-in-out;
+  }
+`;
+}
+
+
 
   // Helper functions for the UI
   function updatePlayerLists(room) {
@@ -685,6 +563,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!gameState) return;
     
     console.log('Rendering game state. Game phase:', gameState.gamePhase);
+    
+    // Reset all player area styles
+    document.querySelectorAll('.player-area').forEach(el => {
+      el.style.boxShadow = 'none';
+      el.style.animation = 'none';
+    });
     
     // Render hands
     renderHands();
