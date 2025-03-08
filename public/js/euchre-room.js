@@ -698,21 +698,120 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update game info and controls
     updateGameControls();
   
-    // Highlight first position player
+    // Clear all position indicators first
+    clearPositionIndicators();
+    
+    // Add dealer indicator
+    addDealerIndicator();
+    
+    // Add lead position indicator if applicable
     if (gameState.firstPositionId) {
-      const firstPlayerElements = document.querySelectorAll('.player-area');
-      firstPlayerElements.forEach(el => {
-        const playerName = el.querySelector('.player-name');
-        // FIX HERE: Changed 'room' to 'roomState'
-        if (playerName && roomState && roomState.playerNames && 
-            playerName.textContent.includes(roomState.playerNames[gameState.firstPositionId])) {
-          el.classList.add('first-position');
-          // Optionally add an emoji indicator
-          playerName.innerHTML += ' 🏁';
-        } else {
-          el.classList.remove('first-position');
+      addLeadPositionIndicator(gameState.firstPositionId);
+    }
+  }
+
+  function clearPositionIndicators() {
+    // Remove any existing indicator classes
+    document.querySelectorAll('.dealer-indicator, .lead-indicator').forEach(el => el.remove());
+    
+    // Remove any existing highlight classes
+    document.querySelectorAll('.player-area').forEach(el => {
+      el.classList.remove('first-position');
+    });
+    
+    // Clear any emoji indicators from player names
+    document.querySelectorAll('.player-name').forEach(el => {
+      // Remove any emoji characters (common emoji ranges)
+      el.innerHTML = el.innerHTML.replace(/[\u{1F300}-\u{1F5FF}\u{1F900}-\u{1F9FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
+      // Remove any text like (LEAD) or (DEALER)
+      el.innerHTML = el.innerHTML.replace(/\s*\((?:LEAD|DEALER)\)/g, '');
+    });
+  }
+
+  function addDealerIndicator() {
+    // Find the dealer's seat number
+    let dealerSeatNum = null;
+    const dealerPos = gameState.dealerPosition;
+    if (dealerPos !== undefined) {
+      dealerSeatNum = (dealerPos % 4) + 1; // Convert 0-3 to 1-4
+    }
+    
+    if (dealerSeatNum) {
+      // Find the player in that seat
+      const dealerId = roomState.playerSeats[dealerSeatNum];
+      if (dealerId) {
+        // Map seat number to position
+        let position;
+        switch (dealerSeatNum) {
+          case 1: position = 'north'; break;
+          case 2: position = 'west'; break;
+          case 3: position = 'south'; break;
+          case 4: position = 'east'; break;
         }
-      });
+        
+        // Add dealer indicator
+        const playerArea = document.querySelector(`.player-${position}`);
+        if (playerArea) {
+          // Add DEALER label
+          const dealerLabel = document.createElement('div');
+          dealerLabel.className = 'dealer-indicator';
+          dealerLabel.innerHTML = 'DEALER';
+          dealerLabel.style.position = 'absolute';
+          dealerLabel.style.bottom = '-20px';
+          dealerLabel.style.right = '10px';
+          dealerLabel.style.color = 'black';
+          dealerLabel.style.backgroundColor = 'gold';
+          dealerLabel.style.padding = '2px 5px';
+          dealerLabel.style.borderRadius = '3px';
+          dealerLabel.style.fontSize = '10px';
+          dealerLabel.style.fontWeight = 'bold';
+          playerArea.appendChild(dealerLabel);
+        }
+      }
+    }
+  }
+
+  function addLeadPositionIndicator(leadPlayerId) {
+    // Find the seat for the lead player
+    let leadSeatNum = null;
+    for (const [seatNum, playerId] of Object.entries(roomState.playerSeats)) {
+      if (playerId === leadPlayerId) {
+        leadSeatNum = parseInt(seatNum);
+        break;
+      }
+    }
+    
+    if (leadSeatNum) {
+      // Map seat number to position
+      let position;
+      switch (leadSeatNum) {
+        case 1: position = 'north'; break;
+        case 2: position = 'west'; break;
+        case 3: position = 'south'; break;
+        case 4: position = 'east'; break;
+      }
+      
+      // Add lead indicator
+      const playerArea = document.querySelector(`.player-${position}`);
+      if (playerArea) {
+        // Add visual indicator with gold border
+        playerArea.classList.add('first-position');
+        
+        // Add LEAD label
+        const leadLabel = document.createElement('div');
+        leadLabel.className = 'lead-indicator';
+        leadLabel.innerHTML = 'LEAD';
+        leadLabel.style.position = 'absolute';
+        leadLabel.style.bottom = '-20px';
+        leadLabel.style.left = '10px';
+        leadLabel.style.color = 'white';
+        leadLabel.style.backgroundColor = 'green';
+        leadLabel.style.padding = '2px 5px';
+        leadLabel.style.borderRadius = '3px';
+        leadLabel.style.fontSize = '10px';
+        leadLabel.style.fontWeight = 'bold';
+        playerArea.appendChild(leadLabel);
+      }
     }
   }
 

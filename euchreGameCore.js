@@ -35,7 +35,8 @@ function initializeEuchreGame(roomId) {
     alonePlayer: null,
     roundComplete: false,
     gameLog: [],
-    firstPositionId: null // Track the lead position
+    firstPositionId: null, // Track the lead position
+    positionIndicators: {} // Object to track position indicators for players
   };
 
   return room.euchre;
@@ -108,6 +109,7 @@ function getFilteredGameState(euchreState, room) {
   if (!filteredState.gameLog) filteredState.gameLog = [];
   if (!filteredState.teamScores) filteredState.teamScores = [0, 0];
   if (!filteredState.teamTricks) filteredState.teamTricks = [0, 0];
+  if (!filteredState.positionIndicators) filteredState.positionIndicators = {};
   
   // Make sure all players in the room have context, not just seated players
   for (const playerId of room.players) {

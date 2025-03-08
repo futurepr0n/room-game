@@ -149,8 +149,10 @@ function processHandScoring(io, roomId) {
 
 // Prepare for the next hand
 function prepareNextHand(io, roomId, euchreState, room) {
-  // Move dealer position
-  euchreState.dealerPosition = (euchreState.dealerPosition + 1) % 4;
+  // Move dealer position CLOCKWISE (to the left)
+  // Change from (dealerPosition + 1) to (dealerPosition + 3) % 4
+  // This creates a clockwise rotation (1->4->3->2->1) instead of counter-clockwise
+  euchreState.dealerPosition = (euchreState.dealerPosition + 3) % 4;
   
   // Reset game state for new hand but preserve scores
   euchreState.gamePhase = 'bidding1'; // Changed from 'idle' to auto-continue
@@ -160,6 +162,9 @@ function prepareNextHand(io, roomId, euchreState, room) {
   euchreState.bidsMade = 0;
   euchreState.isGoingAlone = false;
   euchreState.alonePlayer = null;
+  
+  // Clear any position indicators
+  euchreState.positionIndicators = {};
   
   // Reset tricks won
   for (const playerId of room.seatedPlayers) {
