@@ -165,19 +165,15 @@ function processNextPlayer(io, roomId) {
   broadcastGameState(io, roomId);
   
   // Check if next player is CPU
-  //if (nextPlayerId.startsWith('cpu_')) {
+  if (nextPlayerId.startsWith('cpu_')) {
     // Schedule CPU play after a delay
-  //  setTimeout(() => {
-   //   processCPUTurn(io, roomId, nextPlayerId);
-  //  }, 1500);
-  //}
-
-  if (!euchreCPU) {
-    euchreCPU = require('./euchreCPU');
+    if (!euchreCPU) {
+      euchreCPU = require('./euchreCPU');
+    }
+    setTimeout(() => {
+      euchreCPU.processCPUTurn(io, roomId, nextPlayerId);
+    }, 1500);
   }
-  setTimeout(() => {
-    euchreCPU.processCPUTurn(io, roomId, nextPlayerId);
-  }, 1500);
 }
 
 // Process a completed trick
@@ -228,19 +224,16 @@ function processCompletedTrick(io, roomId) {
       broadcastGameState(io, roomId);
       
       // Check if next player is CPU
-    //   if (winningPlayer.startsWith('cpu_')) {
-    //     // Schedule CPU play after a delay
-    //     setTimeout(() => {
-    //       processCPUTurn(io, roomId, winningPlayer);
-    //     }, 1500);
-    //   }
-
-    if (!euchreCPU) {
-        euchreCPU = require('./euchreCPU');
+      if (winningPlayer.startsWith('cpu_')) {
+        // Schedule CPU play after a delay
+        if (!euchreCPU) {
+          euchreCPU = require('./euchreCPU');
+        }
+        setTimeout(() => {
+          // Use winningPlayer instead of nextPlayerId
+          euchreCPU.processCPUTurn(io, roomId, winningPlayer);
+        }, 1500);
       }
-      setTimeout(() => {
-        euchreCPU.processCPUTurn(io, roomId, nextPlayerId);
-      }, 1500);
     }, 2000); // 2-second delay between tricks
   }
 }
@@ -305,4 +298,4 @@ module.exports = {
   getPlayerTeam,
   getCurrentWinningPlay,
   arePartners
-}; 
+};
