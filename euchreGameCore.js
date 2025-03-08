@@ -177,6 +177,14 @@ function broadcastGameState(io, roomId) {
     console.error('Error in broadcastGameState:', error);
     console.error(error.stack);
   }
+
+  try {
+    // After broadcasting, check if we need to handle CPU turns
+    const { checkForCPUTurns } = require('./euchreCPU');
+    checkForCPUTurns(io, roomId);
+  } catch (error) {
+    console.error('Error checking for CPU turns:', error);
+  }
 }
 
 // Add a message to the game log
@@ -348,6 +356,16 @@ function startEuchreGame(io, roomId) {
   
   // Broadcast the game state to all players
   broadcastGameState(io, roomId);
+
+  if (euchreState.currentPlayer && euchreState.currentPlayer.startsWith('cpu_')) {
+    // Import the CPU handling function to avoid circular dependencies
+    const { checkForCPUTurns } = require('./euchreCPU');
+    
+    // Schedule CPU turn after a slight delay
+    setTimeout(() => {
+      checkForCPUTurns(io, roomId);
+    }, 1000);
+  }
   
   return euchreState;
 }
