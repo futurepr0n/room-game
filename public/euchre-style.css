@@ -410,3 +410,17 @@ button:disabled {
   50% { transform: translateX(-50%) scale(1.1); }
   100% { transform: translateX(-50%) scale(1); }
 }
+
+.trump-indicator {
+  position: absolute !important;
+  top: 10px !important;
+  right: 10px !important;
+  background-color: rgba(0, 0, 0, 0.7) !important;
+  padding: 8px 12px !important;
+  border-radius: 5px !important;
+  font-size: 16px !important;
+  color: white !important;
+  font-weight: bold !important;
+  z-index: 1000 !important;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3) !important;
+}

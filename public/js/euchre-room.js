@@ -333,16 +333,16 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update trump indicator position and style
     if (gameState.trumpSuit) {
+      // Make sure the trump indicator is properly positioned and visible
       trumpIndicator.style.display = 'block';
-      // Position at top right of board
       trumpIndicator.style.position = 'absolute';
       trumpIndicator.style.top = '10px';
       trumpIndicator.style.right = '10px';
-      trumpIndicator.style.zIndex = '100';
+      trumpIndicator.style.zIndex = '1000';
       
       const suitSymbols = {'hearts': '♥', 'diamonds': '♦', 'clubs': '♣', 'spades': '♠'};
       const suitSymbol = suitSymbols[gameState.trumpSuit] || '';
-      trumpSuitText.textContent = `Trump: ${gameState.trumpSuit.charAt(0).toUpperCase() + gameState.trumpSuit.slice(1)} ${suitSymbol}`;
+      trumpSuitText.textContent = `${gameState.trumpSuit.charAt(0).toUpperCase() + gameState.trumpSuit.slice(1)} ${suitSymbol}`;
       
       // Add color class for red suits
       if (gameState.trumpSuit === 'hearts' || gameState.trumpSuit === 'diamonds') {
