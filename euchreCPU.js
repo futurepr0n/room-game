@@ -470,16 +470,16 @@ function selectLeadCard(hand, euchreState, cpuId, room) {
 }
 
 // Helper function to check if partner is winning the current trick
-function isPartnerCurrentlyWinning(euchreState, cpuId, room) {
-  if (euchreState.currentTrick.length === 0) return false;
+// function isPartnerCurrentlyWinning(euchreState, cpuId, room) {
+//   if (euchreState.currentTrick.length === 0) return false;
   
-  // Find the current winning play
-  const winningPlay = getCurrentWinningPlay(euchreState);
-  if (!winningPlay) return false;
+//   // Find the current winning play
+//   const winningPlay = getCurrentWinningPlay(euchreState);
+//   if (!winningPlay) return false;
   
-  // Check if winner is partner
-  return arePartners(cpuId, winningPlay.player, room);
-}
+//   // Check if winner is partner
+//   return arePartners(cpuId, winningPlay.player, room);
+// }
 
 // Check for CPU turns and trigger them if needed
 function checkForCPUTurns(io, roomId) {
