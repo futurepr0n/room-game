@@ -55,6 +55,7 @@ const {
 } = require('./euchreCPU');
 
 // Handle bidding actions
+// Handle bidding actions
 function handleEuchreBid(io, socket, bid) {
   try {
     // Get the room ID - either from socket.roomId (for real players) or directly passed (for CPU players)
@@ -120,8 +121,18 @@ function handleEuchreBid(io, socket, bid) {
         // Move to playing phase
         euchreState.gamePhase = 'playing';
         
-        // Player to left of dealer leads
-        const leadSeatNum = dealerSeatNum < 4 ? dealerSeatNum + 1 : 1; // Wrap from 4 to 1
+        // Player to left of dealer leads - clockwise
+        // Determine the correct lead seat in clockwise rotation
+        let leadSeatNum;
+        if (dealerSeatNum === 1) leadSeatNum = 4;
+        else if (dealerSeatNum === 2) leadSeatNum = 1;
+        else if (dealerSeatNum === 3) leadSeatNum = 2;
+        else if (dealerSeatNum === 4) leadSeatNum = 3;
+        else leadSeatNum = 4; // Fallback
+        
+        console.log('Dealer seat:', dealerSeatNum);
+        console.log('Lead seat:', leadSeatNum);
+        
         const leadPlayerId = room.playerSeats[leadSeatNum];
         
         if (leadPlayerId) {
@@ -152,12 +163,13 @@ function handleEuchreBid(io, socket, bid) {
         }
         
         if (currentSeatNum) {
-          // Calculate next seat number (clockwise)
+          // Calculate next seat number in CLOCKWISE direction
           let nextSeatNum;
           if (currentSeatNum === 1) nextSeatNum = 4;
           else if (currentSeatNum === 4) nextSeatNum = 3;
           else if (currentSeatNum === 3) nextSeatNum = 2;
           else if (currentSeatNum === 2) nextSeatNum = 1;
+          else nextSeatNum = 1; // Fallback
           
           // Get player ID at that seat
           const nextPlayerId = room.playerSeats[nextSeatNum];
@@ -175,10 +187,18 @@ function handleEuchreBid(io, socket, bid) {
           const oldTurnUpSuit = euchreState.turnUpCard.suit;
           addToGameLog(euchreState, `Everyone passed. Turn down ${oldTurnUpSuit}.`);
           
-          // First player after dealer gets to choose suit
+          // First player after dealer gets to choose suit - to the LEFT (clockwise)
           const dealerPosition = euchreState.dealerPosition;
           const dealerSeatNum = (dealerPosition % 4) + 1;
-          const firstSeatNum = dealerSeatNum < 4 ? dealerSeatNum + 1 : 1;
+          
+          // Calculate the first bidder seat in clockwise rotation
+          let firstSeatNum;
+          if (dealerSeatNum === 1) firstSeatNum = 4;
+          else if (dealerSeatNum === 2) firstSeatNum = 1;
+          else if (dealerSeatNum === 3) firstSeatNum = 2;
+          else if (dealerSeatNum === 4) firstSeatNum = 3;
+          else firstSeatNum = 4; // Fallback
+          
           const firstPlayerId = room.playerSeats[firstSeatNum];
           
           if (firstPlayerId) {
@@ -205,12 +225,20 @@ function handleEuchreBid(io, socket, bid) {
         // Player to left of dealer leads
         const dealerPosition = euchreState.dealerPosition;
         const dealerSeatNum = (dealerPosition % 4) + 1;
-        const nextSeatNum = dealerSeatNum < 4 ? dealerSeatNum + 1 : 1;
-        const nextPlayerId = room.playerSeats[nextSeatNum];
         
-        if (nextPlayerId) {
-          euchreState.currentPlayer = nextPlayerId;
-          euchreState.firstPositionId = nextPlayerId; // Set first position
+        // Calculate lead seat in clockwise rotation
+        let leadSeatNum;
+        if (dealerSeatNum === 1) leadSeatNum = 4;
+        else if (dealerSeatNum === 2) leadSeatNum = 1;
+        else if (dealerSeatNum === 3) leadSeatNum = 2;
+        else if (dealerSeatNum === 4) leadSeatNum = 3;
+        else leadSeatNum = 4; // Fallback
+        
+        const leadPlayerId = room.playerSeats[leadSeatNum];
+        
+        if (leadPlayerId) {
+          euchreState.currentPlayer = leadPlayerId;
+          euchreState.firstPositionId = leadPlayerId; // Set first position
         }
         
         if (euchreState.isGoingAlone) {
@@ -234,11 +262,13 @@ function handleEuchreBid(io, socket, bid) {
         }
         
         if (currentSeatNum) {
+          // Calculate next seat in clockwise rotation
           let nextSeatNum;
           if (currentSeatNum === 1) nextSeatNum = 4;
           else if (currentSeatNum === 4) nextSeatNum = 3;
           else if (currentSeatNum === 3) nextSeatNum = 2;
           else if (currentSeatNum === 2) nextSeatNum = 1;
+          else nextSeatNum = 1; // Fallback
           
           const nextPlayerId = room.playerSeats[nextSeatNum];
           if (nextPlayerId) {
@@ -250,8 +280,8 @@ function handleEuchreBid(io, socket, bid) {
           // All players passed again, redeal
           addToGameLog(euchreState, `Everyone passed. Redealing.`);
           
-          // Move dealer position
-          euchreState.dealerPosition = (euchreState.dealerPosition + 1) % 4;
+          // Move dealer position clockwise (to the left)
+          euchreState.dealerPosition = (euchreState.dealerPosition + 3) % 4;
           
           // Reset and redeal
           createDeck(euchreState);
@@ -264,7 +294,15 @@ function handleEuchreBid(io, socket, bid) {
           
           // First player after dealer starts bidding (using seat numbers)
           const dealerSeat = (euchreState.dealerPosition % 4) + 1;
-          const firstSeat = dealerSeat < 4 ? dealerSeat + 1 : 1;
+          
+          // Calculate first bidder seat in clockwise rotation
+          let firstSeat;
+          if (dealerSeat === 1) firstSeat = 4;
+          else if (dealerSeat === 2) firstSeat = 1;
+          else if (dealerSeat === 3) firstSeat = 2;
+          else if (dealerSeat === 4) firstSeat = 3;
+          else firstSeat = 4; // Fallback
+          
           const firstPlayerId = room.playerSeats[firstSeat];
           
           if (firstPlayerId) {

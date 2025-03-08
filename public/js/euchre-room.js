@@ -314,6 +314,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  function clearAllTurnIndicators() {
+    // Remove any existing pulsing effect from all player areas
+    document.querySelectorAll('.player-area').forEach(el => {
+      el.style.boxShadow = 'none';
+      el.style.animation = 'none';
+    });
+    
+    // Remove any turn indicator elements
+    document.querySelectorAll('.turn-indicator').forEach(el => el.remove());
+  }
+  
+
   function updateGameControls() {
     // Clear all control displays
     biddingControls.style.display = 'none';
@@ -432,6 +444,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
+
+
   function updateStyles() {
     // Create a style element if it doesn't exist
     let styleEl = document.getElementById('dynamic-euchre-styles');
@@ -569,6 +583,10 @@ document.addEventListener('DOMContentLoaded', function() {
       el.style.boxShadow = 'none';
       el.style.animation = 'none';
     });
+
+    // Clear all indicators first
+    clearAllTurnIndicators();
+    clearPositionIndicators();
     
     // Render hands
     renderHands();
@@ -612,48 +630,134 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  function addDealerIndicator() {
-    // Find the dealer's seat number
-    let dealerSeatNum = null;
-    const dealerPos = gameState.dealerPosition;
-    if (dealerPos !== undefined) {
-      dealerSeatNum = (dealerPos % 4) + 1; // Convert 0-3 to 1-4
+  function updateTrumpIndicator() {
+    if (!gameState) return;
+    
+    const trumpIndicator = document.getElementById('trump-indicator');
+    const trumpSuitText = document.getElementById('trump-suit');
+    
+    if (gameState.trumpSuit) {
+      // Make sure the trump indicator is visible and properly positioned
+      trumpIndicator.style.display = 'block';
+      trumpIndicator.style.position = 'absolute';
+      trumpIndicator.style.top = '10px';
+      trumpIndicator.style.right = '10px';
+      trumpIndicator.style.zIndex = '100';
+      
+      const suitSymbols = {'hearts': '♥', 'diamonds': '♦', 'clubs': '♣', 'spades': '♠'};
+      const suitSymbol = suitSymbols[gameState.trumpSuit] || '';
+      trumpSuitText.textContent = `${gameState.trumpSuit.charAt(0).toUpperCase() + gameState.trumpSuit.slice(1)} ${suitSymbol}`;
+      
+      // Add color class for red suits
+      if (gameState.trumpSuit === 'hearts' || gameState.trumpSuit === 'diamonds') {
+        trumpSuitText.className = 'red';
+      } else {
+        trumpSuitText.className = '';
+      }
+      
+      console.log('Trump suit set to:', gameState.trumpSuit);
+    } else {
+      trumpIndicator.style.display = 'none';
+    }
+  }
+
+  function highlightActivePlayer() {
+  // Clear all existing indicators first
+  clearAllTurnIndicators();
+  
+  if (!gameState || !gameState.currentPlayer) return;
+  
+  // Find the seat number for the current player
+  let currentSeat = null;
+  for (const [seatNumber, playerId] of Object.entries(roomState.playerSeats)) {
+    if (playerId === gameState.currentPlayer) {
+      currentSeat = parseInt(seatNumber);
+      break;
+    }
+  }
+  
+  if (currentSeat) {
+    // Map seat number to position
+    let position;
+    switch (currentSeat) {
+      case 1: position = 'north'; break;
+      case 2: position = 'west'; break;
+      case 3: position = 'south'; break;
+      case 4: position = 'east'; break;
     }
     
-    if (dealerSeatNum) {
-      // Find the player in that seat
-      const dealerId = roomState.playerSeats[dealerSeatNum];
-      if (dealerId) {
-        // Map seat number to position
-        let position;
-        switch (dealerSeatNum) {
-          case 1: position = 'north'; break;
-          case 2: position = 'west'; break;
-          case 3: position = 'south'; break;
-          case 4: position = 'east'; break;
-        }
+    const playerArea = document.querySelector(`.player-${position}`);
+    if (playerArea) {
+      // Add a pulsing glow effect
+      playerArea.style.boxShadow = '0 0 15px rgba(255, 215, 0, 0.7)';
+      playerArea.style.animation = 'pulse 1.5s infinite';
+      
+      // If it's the current user's turn, add a "Your Turn" indicator
+      if (gameState.currentPlayer === myPlayerId) {
+        const indicator = document.createElement('div');
+        indicator.className = 'turn-indicator';
+        indicator.textContent = 'YOUR TURN';
+        indicator.style.position = 'absolute';
+        indicator.style.top = '-30px';
+        indicator.style.left = '50%';
+        indicator.style.transform = 'translateX(-50%)';
+        indicator.style.backgroundColor = 'rgba(255,215,0,0.8)';
+        indicator.style.color = 'black';
+        indicator.style.padding = '5px 10px';
+        indicator.style.borderRadius = '5px';
+        indicator.style.fontWeight = 'bold';
+        indicator.style.fontSize = '14px';
+        indicator.style.zIndex = '100';
         
-        // Add dealer indicator
-        const playerArea = document.querySelector(`.player-${position}`);
-        if (playerArea) {
-          // Add DEALER label
-          const dealerLabel = document.createElement('div');
-          dealerLabel.className = 'dealer-indicator';
-          dealerLabel.innerHTML = 'DEALER';
-          dealerLabel.style.position = 'absolute';
-          dealerLabel.style.bottom = '-20px';
-          dealerLabel.style.right = '10px';
-          dealerLabel.style.color = 'black';
-          dealerLabel.style.backgroundColor = 'gold';
-          dealerLabel.style.padding = '2px 5px';
-          dealerLabel.style.borderRadius = '3px';
-          dealerLabel.style.fontSize = '10px';
-          dealerLabel.style.fontWeight = 'bold';
-          playerArea.appendChild(dealerLabel);
-        }
+        playerArea.appendChild(indicator);
       }
     }
   }
+}
+
+// Updated addDealerIndicator function to correctly show the dealer
+function addDealerIndicator() {
+  // Remove any existing dealer indicators
+  document.querySelectorAll('.dealer-indicator').forEach(el => el.remove());
+  
+  // Get the dealer position (0-3)
+  const dealerPos = gameState.dealerPosition;
+  if (dealerPos === undefined) return;
+  
+  // Convert to seat number (1-4)
+  const dealerSeatNum = (dealerPos % 4) + 1;
+  
+  // Find the player in that seat
+  const dealerId = roomState.playerSeats[dealerSeatNum];
+  if (!dealerId) return;
+  
+  // Map seat number to position
+  let position;
+  switch (dealerSeatNum) {
+    case 1: position = 'north'; break;
+    case 2: position = 'west'; break;
+    case 3: position = 'south'; break;
+    case 4: position = 'east'; break;
+  }
+  
+  // Add dealer indicator
+  const playerArea = document.querySelector(`.player-${position}`);
+  if (playerArea) {
+    const dealerLabel = document.createElement('div');
+    dealerLabel.className = 'dealer-indicator';
+    dealerLabel.innerHTML = 'DEALER';
+    dealerLabel.style.position = 'absolute';
+    dealerLabel.style.bottom = '-20px';
+    dealerLabel.style.right = '10px';
+    dealerLabel.style.color = 'black';
+    dealerLabel.style.backgroundColor = 'gold';
+    dealerLabel.style.padding = '2px 5px';
+    dealerLabel.style.borderRadius = '3px';
+    dealerLabel.style.fontSize = '10px';
+    dealerLabel.style.fontWeight = 'bold';
+    playerArea.appendChild(dealerLabel);
+  }
+}
 
   function addLeadPositionIndicator(leadPlayerId) {
     // Find the seat for the lead player

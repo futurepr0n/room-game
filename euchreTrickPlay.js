@@ -121,13 +121,14 @@ function processNextPlayer(io, roomId) {
     return;
   }
   
-  // Calculate next seat number (clockwise)
+  // Calculate next seat number in CLOCKWISE direction:
+  // 1 -> 4 -> 3 -> 2 -> 1
   let nextSeatNum;
   if (currentSeatNum === 1) nextSeatNum = 4;
   else if (currentSeatNum === 4) nextSeatNum = 3;
   else if (currentSeatNum === 3) nextSeatNum = 2;
   else if (currentSeatNum === 2) nextSeatNum = 1;
-  else nextSeatNum = 1;
+  else nextSeatNum = 1; // Fallback
   
   const nextPlayerId = room.playerSeats[nextSeatNum];
   
@@ -144,13 +145,14 @@ function processNextPlayer(io, roomId) {
     
     // If alonePlayer is on team 1 (seats 1 & 3), skip their partner's opponent (seat 2 or 4)
     // If alonePlayer is on team 2 (seats 2 & 4), skip their partner's opponent (seat 1 or 3)
-    const skipTeam = (alonePlayerSeatNum === 1 || alonePlayerSeatNum === 3) ? 2 : 1;
-    const isSkipSeat = skipTeam === 1 ? (nextSeatNum === 1 || nextSeatNum === 3) 
-                                      : (nextSeatNum === 2 || nextSeatNum === 4);
+    const isAloneTeam1 = (alonePlayerSeatNum === 1 || alonePlayerSeatNum === 3);
+    const isNextPlayerOpposingPartner = isAloneTeam1 ? 
+                                       (nextSeatNum === 2 || nextSeatNum === 4) && (alonePlayerSeatNum % 2 !== nextSeatNum % 2) : 
+                                       (nextSeatNum === 1 || nextSeatNum === 3) && (alonePlayerSeatNum % 2 !== nextSeatNum % 2);
     
-    // Skip this player's turn if they're the partner of the player going alone
-    if (isSkipSeat && ((alonePlayerSeatNum % 2) === (nextSeatNum % 2))) {
-      // Recursive call to get the next player after the skipped one
+    if (isNextPlayerOpposingPartner) {
+      // Skip to the next player
+      console.log('Skipping player', nextPlayerId, 'in going alone scenario');
       euchreState.currentPlayer = nextPlayerId;
       processNextPlayer(io, roomId);
       return;
@@ -175,6 +177,7 @@ function processNextPlayer(io, roomId) {
     }, 1500);
   }
 }
+
 
 // Process a completed trick
 function processCompletedTrick(io, roomId) {

@@ -258,20 +258,32 @@ function dealCards(euchreState, room) {
 }
 
 // Start bidding phase
+// Update startBidding function in euchreGameCore.js
 function startBidding(euchreState, room) {
   euchreState.gamePhase = 'bidding1';
   euchreState.bidsMade = 0;
   
   console.log('Starting bidding...');
+  console.log('Dealer position:', euchreState.dealerPosition);
   
+  // Calculate the first bidder seat number
   // Dealer is at position 0-3, but seats are numbered 1-4
   const dealerSeatPosition = euchreState.dealerPosition;
-  const firstSeatNumber = (dealerSeatPosition % 4) + 1; // Convert 0-3 to 1-4, wrapping around
+  
+  // Get the seat number for the player to the LEFT of the dealer
+  // In euchre, play moves clockwise
+  let firstSeatNumber;
+  // Handle the clockwise movement correctly
+  if (dealerSeatPosition === 0) firstSeatNumber = 4; // Dealer is seat 1, first bidder is seat 4
+  else if (dealerSeatPosition === 1) firstSeatNumber = 1; // Dealer is seat 2, first bidder is seat 1
+  else if (dealerSeatPosition === 2) firstSeatNumber = 2; // Dealer is seat 3, first bidder is seat 2
+  else if (dealerSeatPosition === 3) firstSeatNumber = 3; // Dealer is seat 4, first bidder is seat 3
+  else firstSeatNumber = 4; // Default fallback
   
   console.log('Dealer seat position (0-3):', dealerSeatPosition);
   console.log('First bidder seat number (1-4):', firstSeatNumber);
   
-  // Get the player at the first seat (player to left of dealer)
+  // Get the player at the first seat
   const firstPlayerId = room.playerSeats[firstSeatNumber];
   
   if (firstPlayerId) {
@@ -282,7 +294,7 @@ function startBidding(euchreState, room) {
     addToGameLog(euchreState, `Bidding begins. ${room.playerNames[firstPlayerId]} goes first.`);
   } else {
     console.error('Could not find player at first seat:', firstSeatNumber);
-    // Fallback to using array index method
+    // Fallback to using array index method - this should never happen with correct setup
     const starterIndex = (euchreState.dealerPosition + 1) % room.seatedPlayers.length;
     euchreState.currentPlayer = room.seatedPlayers[starterIndex];
     console.log('Fallback: Starting player set to:', euchreState.currentPlayer);
