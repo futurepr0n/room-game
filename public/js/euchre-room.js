@@ -315,14 +315,14 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function clearAllTurnIndicators() {
-    // Remove any existing pulsing effect from all player areas
+    // Remove any existing turn indicators
+    document.querySelectorAll('.turn-indicator').forEach(el => el.remove());
+    
+    // Reset all player area styles
     document.querySelectorAll('.player-area').forEach(el => {
       el.style.boxShadow = 'none';
       el.style.animation = 'none';
     });
-    
-    // Remove any turn indicator elements
-    document.querySelectorAll('.turn-indicator').forEach(el => el.remove());
   }
   
 
@@ -333,38 +333,11 @@ document.addEventListener('DOMContentLoaded', function() {
     newGameBtn.style.display = 'none';
     dealBtn.style.display = 'none';
     
-    // Game info area - show only in specific phases
-    const gameInfo = document.getElementById('game-info');
-    const infoText = document.getElementById('info-text');
-    
     // Only proceed if we have game state
     if (!gameState) return;
     
     // Check if user is a spectator
     const isSpectator = !roomState.seatedPlayers.includes(myPlayerId);
-    
-    // Update trump indicator position and style
-    if (gameState.trumpSuit) {
-      // Make sure the trump indicator is properly positioned and visible
-      trumpIndicator.style.display = 'block';
-      trumpIndicator.style.position = 'absolute';
-      trumpIndicator.style.top = '10px';
-      trumpIndicator.style.right = '10px';
-      trumpIndicator.style.zIndex = '1000';
-      
-      const suitSymbols = {'hearts': '♥', 'diamonds': '♦', 'clubs': '♣', 'spades': '♠'};
-      const suitSymbol = suitSymbols[gameState.trumpSuit] || '';
-      trumpSuitText.textContent = `${gameState.trumpSuit.charAt(0).toUpperCase() + gameState.trumpSuit.slice(1)} ${suitSymbol}`;
-      
-      // Add color class for red suits
-      if (gameState.trumpSuit === 'hearts' || gameState.trumpSuit === 'diamonds') {
-        trumpSuitText.className = 'red';
-      } else {
-        trumpSuitText.className = '';
-      }
-    } else {
-      trumpIndicator.style.display = 'none';
-    }
     
     // Handle different game phases
     if (gameState.gamePhase === 'idle') {
@@ -373,7 +346,6 @@ document.addEventListener('DOMContentLoaded', function() {
       infoText.textContent = 'Welcome to Euchre! Click Deal to start.';
       
       if (!isSpectator) {
-        // Only show deal button to seated players
         dealBtn.style.display = 'inline-block';
         dealBtn.disabled = roomState.seatedPlayers.length < 4;
       }
@@ -426,11 +398,10 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } 
     else if (gameState.gamePhase === 'playing') {
-      // Hide the info box during gameplay - trump indicator takes over
+      // Hide the info box during gameplay
       gameInfo.style.display = 'none';
       
-      // Add active player indicator instead
-      highlightActivePlayer();
+      // No need to highlight the active player here, it's already done in renderGameState
     } 
     else if (gameState.gamePhase === 'gameover') {
       // Show game over message
@@ -577,16 +548,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!gameState) return;
     
     console.log('Rendering game state. Game phase:', gameState.gamePhase);
+    console.log('Trump suit:', gameState.trumpSuit);
     
-    // Reset all player area styles
-    document.querySelectorAll('.player-area').forEach(el => {
-      el.style.boxShadow = 'none';
-      el.style.animation = 'none';
-    });
-
-    // Clear all indicators first
+    // Clear all turn indicators first
     clearAllTurnIndicators();
-    clearPositionIndicators();
     
     // Render hands
     renderHands();
@@ -599,9 +564,15 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update game info and controls
     updateGameControls();
-  
-    // Clear all position indicators first
-    clearPositionIndicators();
+    
+    // Make sure to update the trump indicator
+    updateTrumpIndicator();
+    
+    // Add appropriate indicators
+    if (gameState.gamePhase === 'playing') {
+      // Highlight active player
+      highlightActivePlayer();
+    }
     
     // Add dealer indicator
     addDealerIndicator();
@@ -631,19 +602,20 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function updateTrumpIndicator() {
-    if (!gameState) return;
-    
     const trumpIndicator = document.getElementById('trump-indicator');
     const trumpSuitText = document.getElementById('trump-suit');
     
-    if (gameState.trumpSuit) {
-      // Make sure the trump indicator is visible and properly positioned
+    if (gameState && gameState.trumpSuit) {
+      // Make sure the trump indicator is visible
       trumpIndicator.style.display = 'block';
+      
+      // Make sure the trump indicator is properly positioned
       trumpIndicator.style.position = 'absolute';
       trumpIndicator.style.top = '10px';
       trumpIndicator.style.right = '10px';
       trumpIndicator.style.zIndex = '100';
       
+      // Set the text content
       const suitSymbols = {'hearts': '♥', 'diamonds': '♦', 'clubs': '♣', 'spades': '♠'};
       const suitSymbol = suitSymbols[gameState.trumpSuit] || '';
       trumpSuitText.textContent = `${gameState.trumpSuit.charAt(0).toUpperCase() + gameState.trumpSuit.slice(1)} ${suitSymbol}`;
@@ -655,77 +627,77 @@ document.addEventListener('DOMContentLoaded', function() {
         trumpSuitText.className = '';
       }
       
-      console.log('Trump suit set to:', gameState.trumpSuit);
+      console.log('Trump indicator updated:', gameState.trumpSuit);
     } else {
+      // No trump suit set, hide the indicator
       trumpIndicator.style.display = 'none';
     }
   }
 
   function highlightActivePlayer() {
-  // Clear all existing indicators first
-  clearAllTurnIndicators();
-  
-  if (!gameState || !gameState.currentPlayer) return;
-  
-  // Find the seat number for the current player
-  let currentSeat = null;
-  for (const [seatNumber, playerId] of Object.entries(roomState.playerSeats)) {
-    if (playerId === gameState.currentPlayer) {
-      currentSeat = parseInt(seatNumber);
-      break;
-    }
-  }
-  
-  if (currentSeat) {
-    // Map seat number to position
-    let position;
-    switch (currentSeat) {
-      case 1: position = 'north'; break;
-      case 2: position = 'west'; break;
-      case 3: position = 'south'; break;
-      case 4: position = 'east'; break;
+    // First clear any existing indicators
+    clearAllTurnIndicators();
+    
+    if (!gameState || !gameState.currentPlayer) return;
+    
+    // Find the seat number for the current player
+    let currentSeat = null;
+    for (const [seatNumber, playerId] of Object.entries(roomState.playerSeats)) {
+      if (playerId === gameState.currentPlayer) {
+        currentSeat = parseInt(seatNumber);
+        break;
+      }
     }
     
-    const playerArea = document.querySelector(`.player-${position}`);
-    if (playerArea) {
-      // Add a pulsing glow effect
-      playerArea.style.boxShadow = '0 0 15px rgba(255, 215, 0, 0.7)';
-      playerArea.style.animation = 'pulse 1.5s infinite';
+    if (currentSeat) {
+      // Map seat number to position
+      let position;
+      switch (currentSeat) {
+        case 1: position = 'north'; break;
+        case 2: position = 'west'; break;
+        case 3: position = 'south'; break;
+        case 4: position = 'east'; break;
+      }
       
-      // If it's the current user's turn, add a "Your Turn" indicator
-      if (gameState.currentPlayer === myPlayerId) {
-        const indicator = document.createElement('div');
-        indicator.className = 'turn-indicator';
-        indicator.textContent = 'YOUR TURN';
-        indicator.style.position = 'absolute';
-        indicator.style.top = '-30px';
-        indicator.style.left = '50%';
-        indicator.style.transform = 'translateX(-50%)';
-        indicator.style.backgroundColor = 'rgba(255,215,0,0.8)';
-        indicator.style.color = 'black';
-        indicator.style.padding = '5px 10px';
-        indicator.style.borderRadius = '5px';
-        indicator.style.fontWeight = 'bold';
-        indicator.style.fontSize = '14px';
-        indicator.style.zIndex = '100';
+      const playerArea = document.querySelector(`.player-${position}`);
+      if (playerArea) {
+        // Add a pulsing glow effect
+        playerArea.style.boxShadow = '0 0 15px rgba(255, 215, 0, 0.7)';
+        playerArea.style.animation = 'pulse 1.5s infinite';
         
-        playerArea.appendChild(indicator);
+        // If it's the current user's turn, add a "Your Turn" indicator
+        if (gameState.currentPlayer === myPlayerId) {
+          const indicator = document.createElement('div');
+          indicator.className = 'turn-indicator';
+          indicator.textContent = 'YOUR TURN';
+          indicator.style.position = 'absolute';
+          indicator.style.top = '-30px';
+          indicator.style.left = '50%';
+          indicator.style.transform = 'translateX(-50%)';
+          indicator.style.backgroundColor = 'rgba(255,215,0,0.8)';
+          indicator.style.color = 'black';
+          indicator.style.padding = '5px 10px';
+          indicator.style.borderRadius = '5px';
+          indicator.style.fontWeight = 'bold';
+          indicator.style.fontSize = '14px';
+          indicator.style.zIndex = '100';
+          
+          playerArea.appendChild(indicator);
+        }
       }
     }
   }
-}
 
 // Updated addDealerIndicator function to correctly show the dealer
 function addDealerIndicator() {
   // Remove any existing dealer indicators
   document.querySelectorAll('.dealer-indicator').forEach(el => el.remove());
   
-  // Get the dealer position (0-3)
-  const dealerPos = gameState.dealerPosition;
-  if (dealerPos === undefined) return;
+  // Get the dealer position from the game state
+  if (!gameState || gameState.dealerPosition === undefined) return;
   
-  // Convert to seat number (1-4)
-  const dealerSeatNum = (dealerPos % 4) + 1;
+  // Convert dealer position (0-3) to seat number (1-4)
+  const dealerSeatNum = (gameState.dealerPosition % 4) + 1;
   
   // Find the player in that seat
   const dealerId = roomState.playerSeats[dealerSeatNum];
@@ -759,49 +731,55 @@ function addDealerIndicator() {
   }
 }
 
-  function addLeadPositionIndicator(leadPlayerId) {
-    // Find the seat for the lead player
-    let leadSeatNum = null;
-    for (const [seatNum, playerId] of Object.entries(roomState.playerSeats)) {
-      if (playerId === leadPlayerId) {
-        leadSeatNum = parseInt(seatNum);
-        break;
-      }
-    }
-    
-    if (leadSeatNum) {
-      // Map seat number to position
-      let position;
-      switch (leadSeatNum) {
-        case 1: position = 'north'; break;
-        case 2: position = 'west'; break;
-        case 3: position = 'south'; break;
-        case 4: position = 'east'; break;
-      }
-      
-      // Add lead indicator
-      const playerArea = document.querySelector(`.player-${position}`);
-      if (playerArea) {
-        // Add visual indicator with gold border
-        playerArea.classList.add('first-position');
-        
-        // Add LEAD label
-        const leadLabel = document.createElement('div');
-        leadLabel.className = 'lead-indicator';
-        leadLabel.innerHTML = 'LEAD';
-        leadLabel.style.position = 'absolute';
-        leadLabel.style.bottom = '-20px';
-        leadLabel.style.left = '10px';
-        leadLabel.style.color = 'white';
-        leadLabel.style.backgroundColor = 'green';
-        leadLabel.style.padding = '2px 5px';
-        leadLabel.style.borderRadius = '3px';
-        leadLabel.style.fontSize = '10px';
-        leadLabel.style.fontWeight = 'bold';
-        playerArea.appendChild(leadLabel);
-      }
+
+function addLeadPositionIndicator(leadPlayerId) {
+  // Remove any existing lead indicators
+  document.querySelectorAll('.lead-indicator').forEach(el => el.remove());
+  
+  if (!leadPlayerId) return;
+  
+  // Find the seat for the lead player
+  let leadSeatNum = null;
+  for (const [seatNum, playerId] of Object.entries(roomState.playerSeats)) {
+    if (playerId === leadPlayerId) {
+      leadSeatNum = parseInt(seatNum);
+      break;
     }
   }
+  
+  if (!leadSeatNum) return;
+  
+  // Map seat number to position
+  let position;
+  switch (leadSeatNum) {
+    case 1: position = 'north'; break;
+    case 2: position = 'west'; break;
+    case 3: position = 'south'; break;
+    case 4: position = 'east'; break;
+  }
+  
+  // Add lead indicator
+  const playerArea = document.querySelector(`.player-${position}`);
+  if (playerArea) {
+    // Add visual indicator with gold border
+    playerArea.classList.add('first-position');
+    
+    // Add LEAD label
+    const leadLabel = document.createElement('div');
+    leadLabel.className = 'lead-indicator';
+    leadLabel.innerHTML = 'LEAD';
+    leadLabel.style.position = 'absolute';
+    leadLabel.style.bottom = '-20px';
+    leadLabel.style.left = '10px';
+    leadLabel.style.color = 'white';
+    leadLabel.style.backgroundColor = 'green';
+    leadLabel.style.padding = '2px 5px';
+    leadLabel.style.borderRadius = '3px';
+    leadLabel.style.fontSize = '10px';
+    leadLabel.style.fontWeight = 'bold';
+    playerArea.appendChild(leadLabel);
+  }
+}
 
   // Functions to render the game state
   function renderHands() {

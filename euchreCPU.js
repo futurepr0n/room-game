@@ -56,15 +56,23 @@ function processCPUTurn(io, roomId, cpuId) {
 }
 
 function isPartnerCurrentlyWinning(euchreState, cpuId, room) {
-    if (euchreState.currentTrick.length === 0) return false;
-    
-    // Find the current winning play using local implementation
-    const winningPlay = getCurrentWinningPlayLocal(euchreState);
-    if (!winningPlay) return false;
-    
-    // Check if winner is partner using local implementation
-    return arePartnersLocal(cpuId, winningPlay.player, room);
+  if (!euchreState || !euchreState.currentTrick || euchreState.currentTrick.length === 0) {
+    return false;
   }
+  
+  try {
+    // Find the current winning play
+    const winningPlay = getCurrentWinningPlayLocal(euchreState);
+    if (!winningPlay || !winningPlay.player) return false;
+    
+    // Check if winner is partner
+    return arePartnersLocal(cpuId, winningPlay.player, room);
+  } catch (error) {
+    console.error('Error in isPartnerCurrentlyWinning:', error);
+    return false; // Default to false on error
+  }
+}
+
   
   // Local implementation of getCurrentWinningPlay to avoid circular dependency
   function getCurrentWinningPlayLocal(euchreState) {
@@ -322,76 +330,82 @@ function decideCPUCardPlay(io, roomId, cpuId) {
     
     console.log(`CPU ${cpuId} hand:`, hand);
     
-    // Choose a card to play based on the current trick and strategy
+    // Choose a card to play
     let cardIndex = 0; // Default to first card
     
-    // If leading the trick, use leading strategy
-    if (euchreState.currentTrick.length === 0) {
-      cardIndex = selectLeadCard(hand, euchreState, cpuId, room);
-    } else {
-      // Following a trick, must follow suit if possible
-      const leadCard = euchreState.currentTrick[0].card;
-      const leadSuit = getEffectiveSuit(leadCard, euchreState.trumpSuit);
-      
-      // Get cards that match the lead suit (considering effective suit with bowers)
-      const matchingSuitCards = [];
-      hand.forEach((card, index) => {
-        if (getEffectiveSuit(card, euchreState.trumpSuit) === leadSuit) {
-          matchingSuitCards.push({ card, index });
-        }
-      });
-      
-      if (matchingSuitCards.length > 0) {
-        // Must play a card of the lead suit
-        // Simple strategy: play highest card if partner isn't winning, otherwise play lowest
-        const partnerWinning = isPartnerCurrentlyWinning(euchreState, cpuId, room);
-        
-        if (partnerWinning) {
-          // Play lowest card of the suit
-          const lowestCard = matchingSuitCards.sort((a, b) => 
-            getCardValue(a.card, euchreState.trumpSuit) - getCardValue(b.card, euchreState.trumpSuit)
-          )[0];
-          cardIndex = lowestCard.index;
-        } else {
-          // Play highest card of the suit
-          const highestCard = matchingSuitCards.sort((a, b) => 
-            getCardValue(b.card, euchreState.trumpSuit) - getCardValue(a.card, euchreState.trumpSuit)
-          )[0];
-          cardIndex = highestCard.index;
-        }
+    try {
+      // If leading the trick, use leading strategy
+      if (euchreState.currentTrick.length === 0) {
+        cardIndex = selectLeadCard(hand, euchreState, cpuId, room);
       } else {
-        // Cannot follow suit, play lowest card (or strategically trump if possible)
-        const partnerWinning = isPartnerCurrentlyWinning(euchreState, cpuId, room);
+        // Following a trick, must follow suit if possible
+        const leadCard = euchreState.currentTrick[0].card;
+        const leadSuit = getEffectiveSuit(leadCard, euchreState.trumpSuit);
         
-        if (!partnerWinning) {
-          // Try to find a trump card to play
-          const trumpCards = [];
-          hand.forEach((card, index) => {
-            if (getEffectiveSuit(card, euchreState.trumpSuit) === euchreState.trumpSuit) {
-              trumpCards.push({ card, index });
-            }
-          });
+        // Get cards that match the lead suit (considering effective suit with bowers)
+        const matchingSuitCards = [];
+        hand.forEach((card, index) => {
+          if (getEffectiveSuit(card, euchreState.trumpSuit) === leadSuit) {
+            matchingSuitCards.push({ card, index });
+          }
+        });
+        
+        if (matchingSuitCards.length > 0) {
+          // Must play a card of the lead suit
+          // Simple strategy: play highest card if partner isn't winning, otherwise play lowest
+          const partnerWinning = isPartnerCurrentlyWinning(euchreState, cpuId, room);
           
-          if (trumpCards.length > 0) {
-            // Play lowest trump card
-            const lowestTrump = trumpCards.sort((a, b) => 
+          if (partnerWinning) {
+            // Play lowest card of the suit
+            const lowestCard = matchingSuitCards.sort((a, b) => 
               getCardValue(a.card, euchreState.trumpSuit) - getCardValue(b.card, euchreState.trumpSuit)
             )[0];
-            cardIndex = lowestTrump.index;
+            cardIndex = lowestCard.index;
           } else {
-            // No trump, play lowest card
-            cardIndex = findLowestCard(hand, euchreState.trumpSuit);
+            // Play highest card of the suit
+            const highestCard = matchingSuitCards.sort((a, b) => 
+              getCardValue(b.card, euchreState.trumpSuit) - getCardValue(a.card, euchreState.trumpSuit)
+            )[0];
+            cardIndex = highestCard.index;
           }
         } else {
-          // Partner winning, play lowest card
-          cardIndex = findLowestCard(hand, euchreState.trumpSuit);
+          // Cannot follow suit, play lowest card (or strategically trump if possible)
+          const partnerWinning = isPartnerCurrentlyWinning(euchreState, cpuId, room);
+          
+          if (!partnerWinning) {
+            // Try to find a trump card to play
+            const trumpCards = [];
+            hand.forEach((card, index) => {
+              if (getEffectiveSuit(card, euchreState.trumpSuit) === euchreState.trumpSuit) {
+                trumpCards.push({ card, index });
+              }
+            });
+            
+            if (trumpCards.length > 0) {
+              // Play lowest trump card
+              const lowestTrump = trumpCards.sort((a, b) => 
+                getCardValue(a.card, euchreState.trumpSuit) - getCardValue(b.card, euchreState.trumpSuit)
+              )[0];
+              cardIndex = lowestTrump.index;
+            } else {
+              // No trump, play lowest card
+              cardIndex = findLowestCard(hand, euchreState.trumpSuit);
+            }
+          } else {
+            // Partner winning, play lowest card
+            cardIndex = findLowestCard(hand, euchreState.trumpSuit);
+          }
         }
       }
+    } catch (strategyError) {
+      console.error('Error in CPU strategy, defaulting to first card:', strategyError);
+      cardIndex = 0; // Default to first card on error
     }
     
-    // Get the selected card
-    const card = hand[cardIndex];
+    console.log(`CPU ${cpuId} selected card at index ${cardIndex}`);
     
+    // Add the card directly to the current trick
+    const card = hand[cardIndex];
     console.log(`CPU ${cpuId} playing card:`, card);
     
     // Add card to current trick
@@ -414,11 +428,13 @@ function decideCPUCardPlay(io, roomId, cpuId) {
     // Broadcast updated state
     broadcastGameState(io, roomId);
     
-    // Process next player in trick
+    // Process next player in trick - ensure this module is required
     const { processNextPlayer } = require('./euchreTrickPlay');
     processNextPlayer(io, roomId);
+    
   } catch (error) {
     console.error('Error in decideCPUCardPlay:', error);
+    console.error(error.stack);
   }
 }
 
@@ -514,6 +530,8 @@ function checkForCPUTurns(io, roomId) {
       // Schedule the CPU turn after a brief delay
       setTimeout(() => {
         console.log(`Executing scheduled CPU turn for ${currentPlayerId}`);
+        // Make sure we use the correct module function
+        const { processCPUTurn } = require('./euchreCPU');
         processCPUTurn(io, roomId, currentPlayerId);
       }, 2000);
     } else {
