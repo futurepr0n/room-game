@@ -11,7 +11,7 @@ const {
   findLowestCard 
 } = require('./euchreCardUtils');
 const { broadcastGameState, addToGameLog } = require('./euchreGameCore');
-const { getCurrentWinningPlay, arePartners } = require('./euchreTrickPlay');
+//const { getCurrentWinningPlay, arePartners } = require('./euchreTrickPlay');
 
 // Handle CPU turns based on game phase
 function processCPUTurn(io, roomId, cpuId) {
@@ -54,6 +54,80 @@ function processCPUTurn(io, roomId, cpuId) {
     decideCPUCardPlay(io, roomId, cpuId);
   }
 }
+
+function isPartnerCurrentlyWinning(euchreState, cpuId, room) {
+    if (euchreState.currentTrick.length === 0) return false;
+    
+    // Find the current winning play using local implementation
+    const winningPlay = getCurrentWinningPlayLocal(euchreState);
+    if (!winningPlay) return false;
+    
+    // Check if winner is partner using local implementation
+    return arePartnersLocal(cpuId, winningPlay.player, room);
+  }
+  
+  // Local implementation of getCurrentWinningPlay to avoid circular dependency
+  function getCurrentWinningPlayLocal(euchreState) {
+    if (!euchreState.currentTrick || euchreState.currentTrick.length === 0) return null;
+    
+    let winningPlay = euchreState.currentTrick[0];
+    const leadCard = euchreState.currentTrick[0].card;
+    const leadSuit = getEffectiveSuit(leadCard, euchreState.trumpSuit);
+    
+    for (let i = 1; i < euchreState.currentTrick.length; i++) {
+      const play = euchreState.currentTrick[i];
+      if (compareCards(play.card, winningPlay.card, leadSuit, euchreState.trumpSuit) > 0) {
+        winningPlay = play;
+      }
+    }
+    
+    return winningPlay;
+  }
+  
+  // Local implementation of arePartners to avoid circular dependency
+  function arePartnersLocal(player1Id, player2Id, room) {
+    if (!room || !room.playerSeats) return false;
+    
+    let seat1 = null;
+    let seat2 = null;
+    
+    for (const [seatNum, playerId] of Object.entries(room.playerSeats)) {
+      if (playerId === player1Id) seat1 = parseInt(seatNum);
+      if (playerId === player2Id) seat2 = parseInt(seatNum);
+    }
+    
+    if (!seat1 || !seat2) return false;
+    
+    // Players are partners if they are both on same team (1&3 or 2&4)
+    return (seat1 % 2) === (seat2 % 2);
+  }
+  
+  // Also need to add compareCards implementation
+  function compareCards(card1, card2, leadSuit, trumpSuit) {
+    const suit1 = getEffectiveSuit(card1, trumpSuit);
+    const suit2 = getEffectiveSuit(card2, trumpSuit);
+    
+    // Trump beats non-trump
+    if (suit1 === trumpSuit && suit2 !== trumpSuit) return 1;
+    if (suit1 !== trumpSuit && suit2 === trumpSuit) return -1;
+    
+    // If both trump, compare ranks
+    if (suit1 === trumpSuit && suit2 === trumpSuit) {
+      return compareCardRanks(card1, card2);
+    }
+    
+    // If neither trump, following lead suit beats not following
+    if (suit1 === leadSuit && suit2 !== leadSuit) return 1;
+    if (suit1 !== leadSuit && suit2 === leadSuit) return -1;
+    
+    // Otherwise compare by rank
+    return compareCardRanks(card1, card2);
+  }
+  
+  function compareCardRanks(card1, card2) {
+    const rankValues = {'9': 0, '10': 1, 'J': 2, 'Q': 3, 'K': 4, 'A': 5};
+    return rankValues[card1.rank] - rankValues[card2.rank];
+  }
 
 // CPU bidding logic
 function decideCPUBid(io, roomId, cpuId) {

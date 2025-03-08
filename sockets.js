@@ -231,7 +231,10 @@ function setupSocket(io) {
     
     socket.on('euchrePlayCard', (cardIndex) => {
       console.log('Received euchre card play from', socket.id, 'card index:', cardIndex);
-      handlePlayCard(io, socket, cardIndex);
+      
+      // Use the backward compatibility alias we defined
+      const { handleEuchrePlayCard } = require('./euchreLogic');
+      handleEuchrePlayCard(io, socket, cardIndex);
       
       // Update active rooms after game state changes
       io.emit('updateActiveRooms', getActiveRooms());

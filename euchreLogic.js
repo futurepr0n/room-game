@@ -312,7 +312,8 @@ module.exports = {
   
   // Bidding and card play
   handleEuchreBid,
-  handlePlayCard: handlePlayCard,
+  handlePlayCard,
+  handleEuchrePlayCard: handlePlayCard,
   
   // CPU functions
   checkForCPUTurns,

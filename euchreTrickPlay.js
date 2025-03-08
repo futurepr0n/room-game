@@ -6,7 +6,7 @@
 const { roomStates } = require('./roomLogic');
 const { getEffectiveSuit, getCardValue, compareCards } = require('./euchreCardUtils');
 const { broadcastGameState, addToGameLog } = require('./euchreGameCore');
-const { processCPUTurn } = require('./euchreCPU');
+let euchreCPU = null;
 
 // Handle a player playing a card
 function handlePlayCard(io, socket, cardIndex) {
@@ -165,12 +165,19 @@ function processNextPlayer(io, roomId) {
   broadcastGameState(io, roomId);
   
   // Check if next player is CPU
-  if (nextPlayerId.startsWith('cpu_')) {
+  //if (nextPlayerId.startsWith('cpu_')) {
     // Schedule CPU play after a delay
-    setTimeout(() => {
-      processCPUTurn(io, roomId, nextPlayerId);
-    }, 1500);
+  //  setTimeout(() => {
+   //   processCPUTurn(io, roomId, nextPlayerId);
+  //  }, 1500);
+  //}
+
+  if (!euchreCPU) {
+    euchreCPU = require('./euchreCPU');
   }
+  setTimeout(() => {
+    euchreCPU.processCPUTurn(io, roomId, nextPlayerId);
+  }, 1500);
 }
 
 // Process a completed trick
@@ -221,12 +228,19 @@ function processCompletedTrick(io, roomId) {
       broadcastGameState(io, roomId);
       
       // Check if next player is CPU
-      if (winningPlayer.startsWith('cpu_')) {
-        // Schedule CPU play after a delay
-        setTimeout(() => {
-          processCPUTurn(io, roomId, winningPlayer);
-        }, 1500);
+    //   if (winningPlayer.startsWith('cpu_')) {
+    //     // Schedule CPU play after a delay
+    //     setTimeout(() => {
+    //       processCPUTurn(io, roomId, winningPlayer);
+    //     }, 1500);
+    //   }
+
+    if (!euchreCPU) {
+        euchreCPU = require('./euchreCPU');
       }
+      setTimeout(() => {
+        euchreCPU.processCPUTurn(io, roomId, nextPlayerId);
+      }, 1500);
     }, 2000); // 2-second delay between tricks
   }
 }
