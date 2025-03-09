@@ -109,6 +109,9 @@ function handleEuchreBid(io, socket, bid) {
         const dealerPosition = euchreState.dealerPosition;
         const dealerSeatNum = (dealerPosition % 4) + 1; // Convert 0-3 to 1-4
         const dealerId = room.playerSeats[dealerSeatNum];
+
+        euchreState.gamePhase = 'discard';
+        euchreState.currentPlayer = dealerId; // Set dealer as current player for discard
         
         // Add the turn-up card to dealer's hand
         if (euchreState.hands[dealerId]) {
@@ -147,6 +150,15 @@ function handleEuchreBid(io, socket, bid) {
         } else {
           addToGameLog(euchreState, `${playerName} ordered up ${euchreState.trumpSuit}`);
         }
+        if (dealerId.startsWith('cpu_')) {
+          console.log(`CPU dealer ${dealerId} needs to discard`);
+          
+          // Schedule CPU discard
+          setTimeout(() => {
+            handleCPUDiscard(io, roomId, dealerId);
+          }, 2000);
+        }
+
       } 
       else if (bid.action === 'pass') {
         // Player passes - increment count
@@ -340,6 +352,108 @@ function handleEuchreBid(io, socket, bid) {
   }
 }
 
+function handleCPUDiscard(io, roomId, cpuId) {
+  const room = roomStates[roomId];
+  if (!room || !room.gameActive) return;
+  
+  const euchreState = room.euchre;
+  if (!euchreState || euchreState.gamePhase !== 'discard') return;
+  
+  // Simple strategy: discard lowest card (not accounting for strategy)
+  const hand = euchreState.hands[cpuId];
+  if (!hand || hand.length === 0) {
+    console.error('CPU hand is empty, cannot discard');
+    return;
+  }
+  
+  // Find lowest card
+  const lowestCardIndex = findLowestCard(hand, euchreState.trumpSuit);
+  
+  console.log(`CPU ${cpuId} discarding card at index ${lowestCardIndex}`);
+  
+  // Create mock socket for compatibility
+  const mockSocket = {
+    id: cpuId,
+    roomId: roomId
+  };
+  
+  // Call the regular discard handler
+  handleEuchreDiscard(io, mockSocket, lowestCardIndex);
+}
+
+function handleEuchreDiscard(io, socket, cardIndex) {
+  const roomId = socket.roomId;
+  const room = roomStates[roomId];
+  
+  if (!room || !room.gameActive || room.gameType !== 'euchre') {
+    console.error('Invalid room state for discard');
+    return;
+  }
+  
+  const euchreState = room.euchre;
+  if (!euchreState || euchreState.gamePhase !== 'discard') {
+    console.error('Not in discard phase');
+    return;
+  }
+  
+  // Check if this player is the dealer
+  const dealerSeatNum = (euchreState.dealerPosition % 4) + 1;
+  const dealerId = room.playerSeats[dealerSeatNum];
+  
+  if (socket.id !== dealerId) {
+    console.error('Only the dealer can discard');
+    return;
+  }
+  
+  // Make sure card index is valid
+  const hand = euchreState.hands[socket.id];
+  if (!hand || cardIndex < 0 || cardIndex >= hand.length) {
+    console.error('Invalid card index for discard');
+    return;
+  }
+  
+  console.log(`Dealer discarding card at index ${cardIndex}`);
+  
+  // Remove the card at the specified index
+  const discardedCard = hand.splice(cardIndex, 1)[0];
+  console.log('Discarded card:', discardedCard);
+  
+  // Add the turn-up card to the dealer's hand
+  hand.push(euchreState.turnUpCard);
+  console.log('Added turn-up card:', euchreState.turnUpCard);
+  
+  // Add to game log
+  addToGameLog(euchreState, `${room.playerNames[socket.id]} discarded a card and took the ${euchreState.turnUpCard.rank} of ${euchreState.turnUpCard.suit}`);
+  
+  // Move to playing phase
+  euchreState.gamePhase = 'playing';
+  
+  // Determine lead player (left of dealer)
+  let leadSeatNum;
+  if (dealerSeatNum === 1) leadSeatNum = 4;
+  else if (dealerSeatNum === 2) leadSeatNum = 1;
+  else if (dealerSeatNum === 3) leadSeatNum = 2;
+  else if (dealerSeatNum === 4) leadSeatNum = 3;
+  else leadSeatNum = 4; // Fallback
+  
+  const leadPlayerId = room.playerSeats[leadSeatNum];
+  
+  if (leadPlayerId) {
+    euchreState.currentPlayer = leadPlayerId;
+    euchreState.firstPositionId = leadPlayerId;
+  }
+  
+  // Broadcast updated game state
+  broadcastGameState(io, roomId);
+  
+  // Check if the next player is a CPU
+  if (euchreState.currentPlayer && euchreState.currentPlayer.startsWith('cpu_')) {
+    setTimeout(() => {
+      checkForCPUTurns(io, roomId);
+    }, 1500);
+  }
+}
+
 // Export all functions for use in the rest of the application
 module.exports = {
   // Core game functions
@@ -352,8 +466,10 @@ module.exports = {
   handleEuchreBid,
   handlePlayCard,
   handleEuchrePlayCard: handlePlayCard,
+  handleEuchreDiscard,
   
   // CPU functions
   checkForCPUTurns,
+  handleCPUDiscard,
   processCPUTurn
 };

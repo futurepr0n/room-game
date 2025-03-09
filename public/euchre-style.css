@@ -469,3 +469,17 @@ button:disabled {
   left: 10px;
   transform: translateY(-50%);
 }
+
+.discard-overlay .card {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.discard-overlay .card:hover {
+  transform: translateY(-10px);
+}
+
+.discard-overlay .turn-up-card {
+  border: 2px solid gold;
+  box-shadow: 0 0 10px gold;
+}

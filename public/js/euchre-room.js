@@ -335,6 +335,26 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Only proceed if we have game state
     if (!gameState) return;
+
+    if (gameState.gamePhase === 'discard') {
+      // Hide regular controls during discard phase
+      biddingControls.style.display = 'none';
+      suitSelection.style.display = 'none';
+      dealBtn.style.display = 'none';
+      
+      // Show appropriate message
+      gameInfo.style.display = 'block';
+      
+      // Find the dealer
+      const dealerSeatNum = (gameState.dealerPosition % 4) + 1;
+      const dealerId = roomState.playerSeats[dealerSeatNum];
+      
+      if (dealerId === myPlayerId) {
+        infoText.textContent = 'Select a card to discard';
+      } else {
+        infoText.textContent = `Waiting for ${roomState.playerNames[dealerId]} to discard...`;
+      }
+    }
     
     // Check if user is a spectator
     const isSpectator = !roomState.seatedPlayers.includes(myPlayerId);
@@ -550,6 +570,21 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Rendering game state. Game phase:', gameState.gamePhase);
     console.log('Trump suit:', gameState.trumpSuit);
     
+    // Check if we're in the discard phase and we're the dealer
+    if (gameState.gamePhase === 'discard') {
+      // Find the dealer's seat number
+      const dealerSeatNum = (gameState.dealerPosition % 4) + 1;
+      const dealerId = roomState.playerSeats[dealerSeatNum];
+      
+      // If we're the dealer, show discard selection
+      if (dealerId === myPlayerId) {
+        showDiscardSelection();
+      } else {
+        // Show waiting message
+        gameInfo.style.display = 'block';
+        infoText.textContent = `Waiting for ${roomState.playerNames[dealerId]} to discard...`;
+      }
+    }
     // Clear all turn indicators first
     clearAllTurnIndicators();
     
@@ -1057,7 +1092,115 @@ function addLeadPositionIndicator(leadPlayerId) {
       });
     }
   }
-
+  function showDiscardSelection() {
+    // Create a discard overlay for dealer
+    const gameContainer = document.querySelector('.game-container');
+    
+    // Remove any existing overlay
+    const existingOverlay = document.getElementById('discard-overlay');
+    if (existingOverlay) existingOverlay.remove();
+    
+    const overlay = document.createElement('div');
+    overlay.id = 'discard-overlay';
+    overlay.className = 'discard-overlay';
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+    overlay.style.zIndex = '1000';
+    overlay.style.display = 'flex';
+    overlay.style.flexDirection = 'column';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    
+    const message = document.createElement('div');
+    message.textContent = 'You must discard one card';
+    message.style.color = 'white';
+    message.style.fontSize = '24px';
+    message.style.marginBottom = '20px';
+    
+    const cardContainer = document.createElement('div');
+    cardContainer.style.display = 'flex';
+    cardContainer.style.gap = '10px';
+    
+    // Add the turn up card to show what's being added
+    const turnUpCardEl = document.createElement('div');
+    turnUpCardEl.className = 'card turn-up-card';
+    turnUpCardEl.style.marginRight = '30px';
+    
+    // Add color class for red suits
+    const isRed = gameState.turnUpCard.suit === 'hearts' || gameState.turnUpCard.suit === 'diamonds';
+    if (isRed) {
+      turnUpCardEl.classList.add('red');
+    }
+    
+    const valueEl = document.createElement('div');
+    valueEl.className = 'card-value';
+    valueEl.textContent = `${gameState.turnUpCard.rank}`;
+    turnUpCardEl.appendChild(valueEl);
+    
+    const symbolEl = document.createElement('div');
+    symbolEl.className = 'card-symbol';
+    const suitSymbols = {'hearts': '♥', 'diamonds': '♦', 'clubs': '♣', 'spades': '♠'};
+    symbolEl.textContent = suitSymbols[gameState.turnUpCard.suit];
+    turnUpCardEl.appendChild(symbolEl);
+    
+    const plusSign = document.createElement('div');
+    plusSign.textContent = '+';
+    plusSign.style.color = 'white';
+    plusSign.style.fontSize = '32px';
+    plusSign.style.margin = '0 10px';
+    
+    // Show each card in the hand
+    const myHand = gameState.hands[myPlayerId];
+    if (myHand) {
+      myHand.forEach((card, index) => {
+        const cardEl = document.createElement('div');
+        cardEl.className = 'card';
+        
+        // Add color class for red suits
+        const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
+        if (isRed) {
+          cardEl.classList.add('red');
+        }
+        
+        const valueEl = document.createElement('div');
+        valueEl.className = 'card-value';
+        valueEl.textContent = `${card.rank}`;
+        cardEl.appendChild(valueEl);
+        
+        const symbolEl = document.createElement('div');
+        symbolEl.className = 'card-symbol';
+        symbolEl.textContent = suitSymbols[card.suit];
+        cardEl.appendChild(symbolEl);
+        
+        // Add click handler to discard this card
+        cardEl.addEventListener('click', () => {
+          socket.emit('euchreDiscard', index);
+          overlay.remove();
+        });
+        
+        cardContainer.appendChild(cardEl);
+      });
+    }
+    
+    // Add elements to overlay
+    overlay.appendChild(message);
+    
+    const cardDisplay = document.createElement('div');
+    cardDisplay.style.display = 'flex';
+    cardDisplay.style.alignItems = 'center';
+    
+    cardDisplay.appendChild(turnUpCardEl);
+    cardDisplay.appendChild(plusSign);
+    cardDisplay.appendChild(cardContainer);
+    
+    overlay.appendChild(cardDisplay);
+    document.body.appendChild(overlay);
+  }
+  
   function renderScores() {
     // Update team scores
     if (gameState.teamScores) {

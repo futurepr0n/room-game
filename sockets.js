@@ -21,6 +21,13 @@ function setupSocket(io) {
       io.emit('updateActiveRooms', getActiveRooms());
     });
 
+    socket.on('euchreDiscard', (cardIndex) => {
+      console.log('Received discard action from', socket.id, 'card index:', cardIndex);
+      
+      const { handleEuchreDiscard } = require('./euchreLogic');
+      handleEuchreDiscard(io, socket, cardIndex);
+    });
+    
     // Modified joinRoom handler with improved spectator support
     socket.on('joinRoom', (data) => {
       console.log('User joining room:', data.roomId);
