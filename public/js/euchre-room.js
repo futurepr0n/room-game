@@ -243,6 +243,7 @@ document.addEventListener('DOMContentLoaded', function() {
           logEvent(gameState.gameLog[i]);
         }
       }
+      updateTurnToken(data.gameState.currentPlayer);
       
       // Render the game state
       renderGameState();
@@ -571,7 +572,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add appropriate indicators
     if (gameState.gamePhase === 'playing') {
       // Highlight active player
-      highlightActivePlayer();
+      updateTurnToken(data.gameState.currentPlayer);
+      //highlightActivePlayer();
     }
     
     // Add dealer indicator
@@ -632,6 +634,61 @@ document.addEventListener('DOMContentLoaded', function() {
       // No trump suit set, hide the indicator
       trumpIndicator.style.display = 'none';
     }
+  }
+
+  function updateTurnToken(currentPlayerId) {
+    const turnToken = document.getElementById('turn-token');
+    
+    // Remove all position classes first
+    turnToken.classList.remove('token-north', 'token-east', 'token-south', 'token-west');
+    
+    // If no current player, hide the token
+    if (!currentPlayerId) {
+      turnToken.style.opacity = '0';
+      return;
+    }
+    
+    // Find the seat number of the current player
+    let currentSeatNum = null;
+    for (const [seatNum, playerId] of Object.entries(room.playerSeats)) {
+      if (playerId === currentPlayerId) {
+        currentSeatNum = parseInt(seatNum);
+        break;
+      }
+    }
+    
+    if (!currentSeatNum) {
+      turnToken.style.opacity = '0';
+      return;
+    }
+    
+    // Position based on seat number
+    switch(currentSeatNum) {
+      case 1:
+        turnToken.classList.add('token-north');
+        break;
+      case 2:
+        turnToken.classList.add('token-west');
+        break;
+      case 3:
+        turnToken.classList.add('token-south');
+        break;
+      case 4:
+        turnToken.classList.add('token-east');
+        break;
+      default:
+        turnToken.style.opacity = '0';
+        return;
+    }
+    
+    // Make the token visible
+    turnToken.style.opacity = '1';
+    
+    // Add a small animation effect
+    turnToken.style.transform += ' scale(1.2)';
+    setTimeout(() => {
+      turnToken.style.transform = turnToken.style.transform.replace(' scale(1.2)', '');
+    }, 300);
   }
 
   function highlightActivePlayer() {
