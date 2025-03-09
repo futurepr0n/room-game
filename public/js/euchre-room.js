@@ -243,9 +243,8 @@ document.addEventListener('DOMContentLoaded', function() {
           logEvent(gameState.gameLog[i]);
         }
       }
-      updateTurnToken(data.gameState.currentPlayer);
       
-      // Render the game state
+      // Render the game state (this will handle the turn token properly)
       renderGameState();
     });
 
@@ -571,9 +570,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Add appropriate indicators
     if (gameState.gamePhase === 'playing') {
-      // Highlight active player
-      updateTurnToken(data.gameState.currentPlayer);
-      //highlightActivePlayer();
+      // Highlight active player using our token approach
+      highlightActivePlayer();
     }
     
     // Add dealer indicator
@@ -692,57 +690,67 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function highlightActivePlayer() {
-    // First clear any existing indicators
+    // Clear any existing highlighting
     clearAllTurnIndicators();
     
     if (!gameState || !gameState.currentPlayer) return;
     
-    // Find the seat number for the current player
-    let currentSeat = null;
-    for (const [seatNumber, playerId] of Object.entries(roomState.playerSeats)) {
-      if (playerId === gameState.currentPlayer) {
-        currentSeat = parseInt(seatNumber);
+    // Use the token approach instead of modifying player areas
+    updateTurnToken(gameState.currentPlayer);
+  }
+  
+  // Define a proper updateTurnToken function
+  function updateTurnToken(currentPlayerId) {
+    const turnToken = document.getElementById('turn-token');
+    if (!turnToken) {
+      console.error('Turn token element not found!');
+      return;
+    }
+    
+    // Remove all position classes first
+    turnToken.classList.remove('token-north', 'token-east', 'token-south', 'token-west');
+    
+    // If no current player, hide the token
+    if (!currentPlayerId || !roomState) {
+      turnToken.style.opacity = '0';
+      return;
+    }
+    
+    // Find the seat number of the current player
+    let currentSeatNum = null;
+    for (const [seatNum, playerId] of Object.entries(roomState.playerSeats || {})) {
+      if (playerId === currentPlayerId) {
+        currentSeatNum = parseInt(seatNum);
         break;
       }
     }
     
-    if (currentSeat) {
-      // Map seat number to position
-      let position;
-      switch (currentSeat) {
-        case 1: position = 'north'; break;
-        case 2: position = 'west'; break;
-        case 3: position = 'south'; break;
-        case 4: position = 'east'; break;
-      }
-      
-      const playerArea = document.querySelector(`.player-${position}`);
-      if (playerArea) {
-        // Add a pulsing glow effect
-        playerArea.style.boxShadow = '0 0 15px rgba(255, 215, 0, 0.7)';
-        playerArea.style.animation = 'pulse 1.5s infinite';
-        
-        // If it's the current user's turn, add a "Your Turn" indicator
-        if (gameState.currentPlayer === myPlayerId) {
-          const indicator = document.createElement('div');
-          indicator.className = 'turn-indicator';
-          indicator.textContent = 'YOUR TURN';
-          indicator.style.position = 'absolute';
-          indicator.style.top = '-30px';
-          indicator.style.left = '50%';
-          indicator.style.transform = 'translateX(-50%)';
-          indicator.style.backgroundColor = 'rgba(255,215,0,0.8)';
-          indicator.style.color = 'black';
-          indicator.style.padding = '5px 10px';
-          indicator.style.borderRadius = '5px';
-          indicator.style.fontWeight = 'bold';
-          indicator.style.fontSize = '14px';
-          indicator.style.zIndex = '100';
-          
-          playerArea.appendChild(indicator);
-        }
-      }
+    if (!currentSeatNum) {
+      turnToken.style.opacity = '0';
+      return;
     }
+    
+    // Position based on seat number
+    switch(currentSeatNum) {
+      case 1:
+        turnToken.classList.add('token-north');
+        break;
+      case 2:
+        turnToken.classList.add('token-west');
+        break;
+      case 3:
+        turnToken.classList.add('token-south');
+        break;
+      case 4:
+        turnToken.classList.add('token-east');
+        break;
+      default:
+        turnToken.style.opacity = '0';
+        return;
+    }
+    
+    // Make the token visible
+    turnToken.style.opacity = '1';
   }
 
 // Updated addDealerIndicator function to correctly show the dealer
