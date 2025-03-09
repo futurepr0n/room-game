@@ -110,8 +110,8 @@ function handleEuchreBid(io, socket, bid) {
         const dealerSeatNum = (dealerPosition % 4) + 1; // Convert 0-3 to 1-4
         const dealerId = room.playerSeats[dealerSeatNum];
 
-        euchreState.gamePhase = 'discard';
-        euchreState.currentPlayer = dealerId; // Set dealer as current player for discard
+        //euchreState.gamePhase = 'discard';
+        //euchreState.currentPlayer = dealerId; // Set dealer as current player for discard
         
         // Add the turn-up card to dealer's hand
         if (euchreState.hands[dealerId]) {
@@ -441,6 +441,24 @@ function handleEuchreDiscard(io, socket, cardIndex) {
   if (leadPlayerId) {
     euchreState.currentPlayer = leadPlayerId;
     euchreState.firstPositionId = leadPlayerId;
+    console.log('Lead player is now:', leadPlayerId);
+  }
+  
+  // Reset for a clean trick
+  euchreState.currentTrick = [];
+  
+  // Verify all hands have the correct number of cards (should be 5 each)
+  console.log('Verifying hand sizes after discard:');
+  for (const playerId of room.seatedPlayers) {
+    if (euchreState.hands[playerId]) {
+      console.log(`Player ${playerId} has ${euchreState.hands[playerId].length} cards`);
+      // If any player doesn't have exactly 5 cards, log an error
+      if (euchreState.hands[playerId].length !== 5) {
+        console.error(`ERROR: Player ${playerId} has ${euchreState.hands[playerId].length} cards instead of 5`);
+      }
+    } else {
+      console.error(`ERROR: Player ${playerId} has no hand`);
+    }
   }
   
   // Broadcast updated game state

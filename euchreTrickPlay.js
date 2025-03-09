@@ -205,8 +205,19 @@ function processCompletedTrick(io, roomId) {
   // Broadcast updated state to show trick winner
   broadcastGameState(io, roomId);
   
-  // Check if hand is complete (all cards played)
-  const handComplete = Object.values(euchreState.hands).every(hand => hand.length === 0);
+  // Check if hand is complete - this means all players have played all 5 of their cards
+  // A single trick has 4 cards (or 3 if someone is going alone)
+  // So we need to check if everyone has 0 cards left
+  const handComplete = Object.values(euchreState.hands).every(hand => 
+    !hand || hand.length === 0
+  );
+  
+  console.log('Hand complete check:', handComplete);
+  // Log card counts for each player
+  for (const playerId of room.seatedPlayers) {
+    const hand = euchreState.hands[playerId];
+    console.log(`Player ${room.playerNames[playerId]} has ${hand ? hand.length : 0} cards left`);
+  }
   
   if (handComplete) {
     // Add a delay before scoring to allow players to see the final trick

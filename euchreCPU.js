@@ -315,20 +315,32 @@ function decideCPUCardPlay(io, roomId, cpuId) {
       return;
     }
     
-    // Create a mock socket for compatibility with the card play function
-    const mockSocket = {
-      id: cpuId,
-      roomId: roomId
-    };
-    
     // Get CPU's hand
     const hand = euchreState.hands[cpuId];
     if (!hand || hand.length === 0) {
       console.error(`CPU ${cpuId} has no cards to play`);
+      
+      // Check if this is because the hand is complete
+      const handComplete = Object.values(euchreState.hands).every(playerHand => 
+        !playerHand || playerHand.length === 0
+      );
+      
+      if (handComplete) {
+        console.log('Hand is complete. Processing hand scoring.');
+        // Import dynamically to avoid circular dependencies
+        const { processHandScoring } = require('./euchreScoring');
+        processHandScoring(io, roomId);
+        return;
+      }
+      
+      // If we get here, it's an error state - let's try to recover
+      console.log('Error state detected. Moving to next player to avoid getting stuck.');
+      
+      // Move to next player
+      const { processNextPlayer } = require('./euchreTrickPlay');
+      processNextPlayer(io, roomId);
       return;
     }
-    
-    console.log(`CPU ${cpuId} hand:`, hand);
     
     // Choose a card to play
     let cardIndex = 0; // Default to first card
