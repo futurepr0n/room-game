@@ -333,10 +333,23 @@ function decideCPUCardPlay(io, roomId, cpuId) {
         return;
       }
       
-      // If we get here, it's an error state - let's try to recover
-      console.log('Error state detected. Moving to next player to avoid getting stuck.');
+      // Check total cards remaining across all players
+      let totalRemainingCards = 0;
+      for (const playerId of room.seatedPlayers) {
+        if (euchreState.hands[playerId]) {
+          totalRemainingCards += euchreState.hands[playerId].length;
+        }
+      }
       
-      // Move to next player
+      // If very few cards remain, force score the hand
+      if (totalRemainingCards <= 3) {
+        console.log('Few cards remaining, forcing hand scoring');
+        const { processHandScoring } = require('./euchreScoring');
+        processHandScoring(io, roomId);
+        return;
+      }
+      
+      console.log('Moving to next player due to CPU having no cards');
       const { processNextPlayer } = require('./euchreTrickPlay');
       processNextPlayer(io, roomId);
       return;
