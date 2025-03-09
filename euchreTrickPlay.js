@@ -180,7 +180,6 @@ function processNextPlayer(io, roomId) {
 
 
 // Process a completed trick
-// Add this to processCompletedTrick in euchreTrickPlay.js
 function processCompletedTrick(io, roomId) {
   const room = roomStates[roomId];
   if (!room) return;
@@ -206,54 +205,8 @@ function processCompletedTrick(io, roomId) {
   // Broadcast updated state to show trick winner
   broadcastGameState(io, roomId);
   
-  // Check if hand is complete - either all cards have been played (5 per player)
-  // or some players have no cards due to the "going alone" rule
-  let handComplete = true;
-  
-  // Log card counts for each player
-  console.log("Checking card counts for hand completion:");
-  let totalCardsRemaining = 0;
-  
-  for (const playerId of room.seatedPlayers) {
-    const hand = euchreState.hands[playerId] || [];
-    const cardCount = hand.length;
-    console.log(`Player ${room.playerNames[playerId]} has ${cardCount} cards left`);
-    totalCardsRemaining += cardCount;
-    
-    // If any player who should have cards still has some, the hand isn't complete
-    if (cardCount > 0) {
-      // Check if this is a player who should be skipped in "going alone" mode
-      if (euchreState.isGoingAlone && euchreState.alonePlayer) {
-        // Get seat numbers for checks
-        const alonePlayerSeatNum = parseInt(Object.keys(room.playerSeats).find(
-          seatNum => room.playerSeats[seatNum] === euchreState.alonePlayer
-        ));
-        const currentPlayerSeatNum = parseInt(Object.keys(room.playerSeats).find(
-          seatNum => room.playerSeats[seatNum] === playerId
-        ));
-        
-        // Check if this player should be skipped (opposite team partner to the alone player)
-        const isSkippedPlayer = (alonePlayerSeatNum % 2) !== (currentPlayerSeatNum % 2) && 
-                               ((alonePlayerSeatNum + 2) % 4 === currentPlayerSeatNum % 4);
-        
-        if (!isSkippedPlayer) {
-          handComplete = false;
-        }
-      } else {
-        handComplete = false;
-      }
-    }
-  }
-  
-  console.log('Total cards remaining in all hands:', totalCardsRemaining);
-  console.log('Hand complete check:', handComplete);
-  
-  // Force hand completion if fewer than 4 cards remain overall 
-  // (this means at most one player might have cards, which would be an error state)
-  if (totalCardsRemaining > 0 && totalCardsRemaining <= 3) {
-    console.log('WARNING: Detected abnormal card count. Force completing the hand.');
-    handComplete = true;
-  }
+  // Check if hand is complete (all cards played)
+  const handComplete = Object.values(euchreState.hands).every(hand => hand.length === 0);
   
   if (handComplete) {
     // Add a delay before scoring to allow players to see the final trick
@@ -285,65 +238,6 @@ function processCompletedTrick(io, roomId) {
         }, 1500);
       }
     }, 2000); // 2-second delay between tricks
-  }
-}
-
-function handlePlayCard(io, socket, cardIndex) {
-  try {
-    const roomId = socket.roomId;
-    const playerId = socket.id;
-    
-    const room = roomStates[roomId];
-    if (!room || !room.gameActive || room.gameType !== 'euchre') {
-      console.error('Invalid room for card play');
-      return;
-    }
-    
-    const euchreState = room.euchre;
-    if (!euchreState || euchreState.gamePhase !== 'playing') {
-      console.error('Invalid game state for card play');
-      return;
-    }
-    
-    // Make sure it's this player's turn
-    if (euchreState.currentPlayer !== playerId) {
-      console.error(`Not player ${playerId}'s turn to play`);
-      return;
-    }
-    
-    // Get player's hand
-    const hand = euchreState.hands[playerId];
-    if (!hand || hand.length === 0) {
-      console.error(`Player ${playerId} has no cards to play`);
-      
-      // Check total remaining cards to see if we should force end the hand
-      let totalRemainingCards = 0;
-      for (const pid of room.seatedPlayers) {
-        if (euchreState.hands[pid]) {
-          totalRemainingCards += euchreState.hands[pid].length;
-        }
-      }
-      
-      if (totalRemainingCards <= 3) {
-        console.log('Few cards remaining, forcing hand completion');
-        const { processHandScoring } = require('./euchreScoring');
-        processHandScoring(io, roomId);
-      } else {
-        // Otherwise just move to next player
-        processNextPlayer(io, roomId);
-      }
-      return;
-    }
-    
-    // Make sure card index is valid
-    if (cardIndex < 0 || cardIndex >= hand.length) {
-      console.error(`Invalid card index: ${cardIndex}`);
-      return;
-    }
-    
-    // Rest of the function remains the same...
-  } catch (error) {
-    console.error('Error in handlePlayCard:', error);
   }
 }
 
