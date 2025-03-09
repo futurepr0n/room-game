@@ -424,3 +424,48 @@ button:disabled {
   z-index: 1000 !important;
   box-shadow: 0 2px 5px rgba(0,0,0,0.3) !important;
 }
+
+.turn-token {
+  position: absolute;
+  background-color: gold;
+  border: 2px solid black;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  z-index: 10;
+  color: black;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.7);
+  pointer-events: none; /* So it doesn't interfere with clicks */
+  transition: all 0.5s ease;
+  /* Start off-screen or hidden */
+  opacity: 0;
+}
+
+/* Add these positioning classes for the token */
+.token-north {
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.token-east {
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+}
+
+.token-south {
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.token-west {
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+}
