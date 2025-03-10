@@ -148,7 +148,14 @@ function broadcastGameState(io, roomId) {
       return;
     }
     
-    console.log('Broadcasting game state to all players in room', roomId);
+    // Check if we should skip CPU check based on the flag
+    const skipCPUCheck = room.skipCPUCheckOnNextBroadcast || room.processingTrick;
+    if (skipCPUCheck) {
+      console.log('Broadcasting game state with CPU check skipped');
+    } else {
+      console.log('Broadcasting game state to all players in room', roomId);
+    }
+    
     console.log('Current game phase:', euchreState.gamePhase);
     console.log('Current player:', euchreState.currentPlayer);
     
@@ -173,23 +180,23 @@ function broadcastGameState(io, roomId) {
     if (euchreState.currentPlayer) {
       console.log(`Current player is ${room.playerNames[euchreState.currentPlayer]} (${euchreState.currentPlayer})`);
     }
+    
+    // Skip CPU check if requested or if processing a trick
+    if (skipCPUCheck) {
+      console.log('Skipping automatic CPU turn check due to flag');
+      return;
+    }
+    
+    try {
+      // After broadcasting, check if we need to handle CPU turns
+      const { checkForCPUTurns } = require('./euchreCPU');
+      checkForCPUTurns(io, roomId);
+    } catch (error) {
+      console.error('Error checking for CPU turns:', error);
+    }
   } catch (error) {
     console.error('Error in broadcastGameState:', error);
     console.error(error.stack);
-  }
-
-  // Check if we're in the middle of processing a trick - skip CPU processing if so
-  if (roomStates[roomId] && roomStates[roomId].processingTrick) {
-    console.log('Skipping automatic CPU turn check - trick processing in progress');
-    return;
-  }
-
-  try {
-    // After broadcasting, check if we need to handle CPU turns
-    const { checkForCPUTurns } = require('./euchreCPU');
-    checkForCPUTurns(io, roomId);
-  } catch (error) {
-    console.error('Error checking for CPU turns:', error);
   }
 }
 

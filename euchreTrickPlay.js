@@ -5,7 +5,7 @@
 
 const { roomStates } = require('./roomLogic');
 const { getEffectiveSuit, getCardValue, compareCards } = require('./euchreCardUtils');
-const { broadcastGameState, addToGameLog } = require('./euchreGameCore');
+const { broadcastGameState, addToGameLog, getFilteredGameState } = require('./euchreGameCore');
 let euchreCPU = null;
 
 // Handle a player playing a card
@@ -241,15 +241,18 @@ function processCompletedTrick(io, roomId) {
       // Log the next leader for debugging purposes
       console.log(`New trick leader is: ${room.playerNames[winningPlayer]} (${winningPlayer})`);
       
-      // Broadcast updated state with new leader
-      // IMPORTANT: Don't trigger CPU turns here, we'll handle that separately
-      const skipCPUCheck = true;
-      broadcastGameStateWithoutCPUCheck(io, roomId, skipCPUCheck);
+      // Instead of using broadcastGameStateWithoutCPUCheck, temporarily set a flag
+      // that the regular broadcastGameState function will check
+      room.skipCPUCheckOnNextBroadcast = true;
       
-      // Now clear the processing flag
+      // Use the regular broadcast function
+      broadcastGameState(io, roomId);
+      
+      // Clear the flag and processing flag
+      room.skipCPUCheckOnNextBroadcast = false;
       room.processingTrick = false;
       
-      // AFTER clearing the flag, handle CPU turn if needed, but with an additional check
+      // AFTER clearing the flag, handle CPU turn if needed
       if (winningPlayer.startsWith('cpu_')) {
         // Using a dedicated function to handle post-trick CPU turns to avoid race conditions
         console.log('Scheduling CPU leader turn after trick completion');
@@ -283,7 +286,7 @@ function broadcastGameStateWithoutCPUCheck(io, roomId, skipCPUCheck = false) {
     
     console.log('Broadcasting game state (skipCPUCheck:', skipCPUCheck, ')');
     
-    // Create the filtered game state
+    // Use the imported getFilteredGameState function
     const filteredState = getFilteredGameState(euchreState, room);
     
     // Add timestamp to help detect stale updates
