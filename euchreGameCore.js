@@ -178,6 +178,12 @@ function broadcastGameState(io, roomId) {
     console.error(error.stack);
   }
 
+  // Check if we're in the middle of processing a trick - skip CPU processing if so
+  if (roomStates[roomId] && roomStates[roomId].processingTrick) {
+    console.log('Skipping automatic CPU turn check - trick processing in progress');
+    return;
+  }
+
   try {
     // After broadcasting, check if we need to handle CPU turns
     const { checkForCPUTurns } = require('./euchreCPU');

@@ -180,6 +180,8 @@ function processNextPlayer(io, roomId) {
 
 
 // Process a completed trick
+// In euchreTrickPlay.js, update the processCompletedTrick function to prevent double CPU play:
+
 function processCompletedTrick(io, roomId) {
   const room = roomStates[roomId];
   if (!room) return;
@@ -202,15 +204,23 @@ function processCompletedTrick(io, roomId) {
   // Add to game log
   addToGameLog(euchreState, `${room.playerNames[winningPlayer]} won the trick`);
   
+  // IMPORTANT: Set a flag to prevent double CPU processing during transition
+  room.processingTrick = true;
+  
   // Broadcast updated state to show trick winner
   broadcastGameState(io, roomId);
   
   // Check if hand is complete (all cards played)
-  const handComplete = Object.values(euchreState.hands).every(hand => hand.length === 0);
+  const handComplete = Object.values(euchreState.hands).every(hand => 
+    !hand || hand.length === 0
+  );
   
   if (handComplete) {
     // Add a delay before scoring to allow players to see the final trick
     setTimeout(() => {
+      // Clear processing flag before moving to scoring
+      room.processingTrick = false;
+      
       // Import dynamically to avoid circular dependencies
       const { processHandScoring } = require('./euchreScoring');
       processHandScoring(io, roomId);
@@ -220,28 +230,111 @@ function processCompletedTrick(io, roomId) {
     setTimeout(() => {
       // Start new trick with winner leading
       euchreState.currentPlayer = winningPlayer;
-      euchreState.currentTrick = [];
-      euchreState.leadSuit = null; // Reset lead suit
       
-      // This is the key fix - update the firstPositionId to the winner
+      // CRITICAL FIX: Update the firstPositionId to the winner of the trick
       euchreState.firstPositionId = winningPlayer;
       
-      // Broadcast updated state
-      broadcastGameState(io, roomId);
+      // Clear the current trick and reset lead suit
+      euchreState.currentTrick = [];
+      euchreState.leadSuit = null;
       
-      // Check if next player is CPU
+      // Log the next leader for debugging purposes
+      console.log(`New trick leader is: ${room.playerNames[winningPlayer]} (${winningPlayer})`);
+      
+      // Broadcast updated state with new leader
+      // IMPORTANT: Don't trigger CPU turns here, we'll handle that separately
+      const skipCPUCheck = true;
+      broadcastGameStateWithoutCPUCheck(io, roomId, skipCPUCheck);
+      
+      // Now clear the processing flag
+      room.processingTrick = false;
+      
+      // AFTER clearing the flag, handle CPU turn if needed, but with an additional check
       if (winningPlayer.startsWith('cpu_')) {
-        // Schedule CPU play after a delay
-        if (!euchreCPU) {
-          euchreCPU = require('./euchreCPU');
-        }
+        // Using a dedicated function to handle post-trick CPU turns to avoid race conditions
+        console.log('Scheduling CPU leader turn after trick completion');
         setTimeout(() => {
-          // Use winningPlayer instead of nextPlayerId
-          euchreCPU.processCPUTurn(io, roomId, winningPlayer);
-        }, 1500);
+          // Double-check it's still this CPU's turn before proceeding
+          if (room.euchre && room.euchre.currentPlayer === winningPlayer) {
+            triggerCPUTurn(io, roomId, winningPlayer);
+          } else {
+            console.log('CPU turn skipped - no longer current player');
+          }
+        }, 2000);
       }
     }, 2000); // 2-second delay between tricks
   }
+}
+
+// Add this helper function to broadcast state without triggering CPU turn checks
+function broadcastGameStateWithoutCPUCheck(io, roomId, skipCPUCheck = false) {
+  try {
+    const room = roomStates[roomId];
+    if (!room) {
+      console.error('Room not found when broadcasting game state:', roomId);
+      return;
+    }
+    
+    const euchreState = room.euchre;
+    if (!euchreState) {
+      console.error('No euchre state when broadcasting:', roomId);
+      return;
+    }
+    
+    console.log('Broadcasting game state (skipCPUCheck:', skipCPUCheck, ')');
+    
+    // Create the filtered game state
+    const filteredState = getFilteredGameState(euchreState, room);
+    
+    // Add timestamp to help detect stale updates
+    filteredState.timestamp = Date.now();
+    
+    // Construct the message to send
+    const gameStateMessage = {
+      gameState: filteredState,
+      roomState: JSON.parse(JSON.stringify(room))  // Deep copy
+    };
+    
+    // Send to all players in the room
+    io.to(roomId).emit('euchreGameState', gameStateMessage);
+    
+    // Log current phase and player for debugging
+    if (euchreState.currentPlayer) {
+      console.log(`Current player is ${room.playerNames[euchreState.currentPlayer]} (${euchreState.currentPlayer})`);
+    }
+    
+    // Skip CPU turn check if requested
+    if (!skipCPUCheck) {
+      try {
+        // Check if we need to handle CPU turns
+        const { checkForCPUTurns } = require('./euchreCPU');
+        checkForCPUTurns(io, roomId);
+      } catch (error) {
+        console.error('Error checking for CPU turns:', error);
+      }
+    }
+  } catch (error) {
+    console.error('Error in broadcastGameState:', error);
+    console.error(error.stack);
+  }
+}
+
+// Add this helper function to safely trigger CPU turns
+function triggerCPUTurn(io, roomId, cpuId) {
+  const room = roomStates[roomId];
+  if (!room || room.processingTrick) {
+    console.log('Skipping CPU turn - room not found or trick in progress');
+    return;
+  }
+  
+  if (!room.euchre || room.euchre.currentPlayer !== cpuId) {
+    console.log('Skipping CPU turn - not current player');
+    return;
+  }
+  
+  console.log('Triggering CPU turn for', cpuId);
+  const { processCPUTurn } = require('./euchreCPU');
+  processCPUTurn(io, roomId, cpuId);
 }
 
 // Determine which team a player belongs to (0 for team 1, 1 for team 2)

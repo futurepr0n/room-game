@@ -501,6 +501,12 @@ function checkForCPUTurns(io, roomId) {
     return;
   }
   
+  // IMPORTANT: Skip if we're in the middle of processing a trick
+  if (room.processingTrick) {
+    console.log('Skipping CPU turn check - currently processing a trick');
+    return;
+  }
+  
   const euchreState = room.euchre;
   if (!euchreState) {
     console.log('No euchre state, skipping CPU turn check');
@@ -523,13 +529,19 @@ function checkForCPUTurns(io, roomId) {
     const lastTurnTime = room.cpuLastTurnTime[currentPlayerId] || 0;
     
     if (now - lastTurnTime > 5000) { // Only trigger if it's been more than 5 seconds
-      // Schedule the CPU turn after a brief delay
-      setTimeout(() => {
+      // Create a function reference for clarity
+      const triggerCPUTurn = () => {
         console.log(`Executing scheduled CPU turn for ${currentPlayerId}`);
-        // Make sure we use the correct module function
-        const { processCPUTurn } = require('./euchreCPU');
-        processCPUTurn(io, roomId, currentPlayerId);
-      }, 2000);
+        // Verify the player is still current before proceeding
+        if (room.euchre && room.euchre.currentPlayer === currentPlayerId && !room.processingTrick) {
+          processCPUTurn(io, roomId, currentPlayerId);
+        } else {
+          console.log('CPU turn skipped - no longer current player or trick in process');
+        }
+      };
+      
+      // Schedule the CPU turn after a brief delay
+      setTimeout(triggerCPUTurn, 2000);
     } else {
       console.log(`Skipping duplicate CPU turn for ${currentPlayerId}, last turn was ${now - lastTurnTime}ms ago`);
     }
