@@ -294,6 +294,8 @@ function decideCPUBid(io, roomId, cpuId) {
 }
 
 // CPU card play logic
+// In euchreCPU.js, completely replace the decideCPUCardPlay function:
+
 function decideCPUCardPlay(io, roomId, cpuId) {
   try {
     // Get room and game state
@@ -416,17 +418,13 @@ function decideCPUCardPlay(io, roomId, cpuId) {
     
     console.log(`CPU ${cpuId} selected card at index ${cardIndex}`);
     
-    // Add the card directly to the current trick
-    //const card = hand[cardIndex];
-    //console.log(`CPU ${cpuId} playing card:`, card);
-    
+    // Create mock socket for the handlePlayCard function
     const mockSocket = { 
       id: cpuId, 
       roomId: roomId 
     };
     
     // Use the same play card function as human players
-    // This is the key change to fix the cards disappearing issue
     const { handlePlayCard } = require('./euchreTrickPlay');
     handlePlayCard(io, mockSocket, cardIndex);
     
@@ -435,35 +433,6 @@ function decideCPUCardPlay(io, roomId, cpuId) {
     console.error(error.stack);
   }
 }
-//     // Add card to current trick
-//     euchreState.currentTrick.push({
-//       player: cpuId,
-//       card: card
-//     });
-    
-//     // If this is the first card in the trick, set it as the lead suit
-//     if (euchreState.currentTrick.length === 1) {
-//       euchreState.leadSuit = getEffectiveSuit(card, euchreState.trumpSuit);
-//     }
-    
-//     // Remove the card from CPU's hand
-//     euchreState.hands[cpuId].splice(cardIndex, 1);
-    
-//     // Add to game log
-//     addToGameLog(euchreState, `${room.playerNames[cpuId]} played ${card.rank} of ${card.suit}`);
-    
-//     // Broadcast updated state
-//     broadcastGameState(io, roomId);
-    
-//     // Process next player in trick - ensure this module is required
-//     const { processNextPlayer } = require('./euchreTrickPlay');
-//     processNextPlayer(io, roomId);
-    
-//   } catch (error) {
-//     console.error('Error in decideCPUCardPlay:', error);
-//     console.error(error.stack);
-//   }
-// }
 
 // Helper function to select a lead card
 function selectLeadCard(hand, euchreState, cpuId, room) {
