@@ -99,8 +99,10 @@ function processNextPlayer(io, roomId) {
   const euchreState = room.euchre;
   if (!euchreState) return;
   
-  // Check if trick is complete (all 4 players played)
-  if (euchreState.currentTrick.length === 4) {
+  // Check if trick is complete
+  // In a going alone scenario, we only need 3 cards instead of 4
+  const expectedCardCount = euchreState.isGoingAlone ? 3 : 4;
+  if (euchreState.currentTrick.length === expectedCardCount) {
     // Process completed trick
     processCompletedTrick(io, roomId);
     return;
@@ -137,23 +139,36 @@ function processNextPlayer(io, roomId) {
     return;
   }
   
-  // Skip player if they're "going alone" and the opposing partner
+  // Skip player if they're "going alone" and they are the partner of the player going alone
   if (euchreState.isGoingAlone && euchreState.alonePlayer) {
     const alonePlayerSeatNum = parseInt(Object.keys(room.playerSeats).find(
       seatNum => room.playerSeats[seatNum] === euchreState.alonePlayer
     ));
     
-    // If alonePlayer is on team 1 (seats 1 & 3), skip their partner's opponent (seat 2 or 4)
-    // If alonePlayer is on team 2 (seats 2 & 4), skip their partner's opponent (seat 1 or 3)
-    const isAloneTeam1 = (alonePlayerSeatNum === 1 || alonePlayerSeatNum === 3);
-    const isNextPlayerOpposingPartner = isAloneTeam1 ? 
-                                       (nextSeatNum === 2 || nextSeatNum === 4) && (alonePlayerSeatNum % 2 !== nextSeatNum % 2) : 
-                                       (nextSeatNum === 1 || nextSeatNum === 3) && (alonePlayerSeatNum % 2 !== nextSeatNum % 2);
+    // In Euchre, partners are in seats 1&3 (team 1) and 2&4 (team 2)
+    // Skip the partner of the player going alone
+    const isPartner = (alonePlayerSeatNum % 2) === (nextSeatNum % 2);
     
-    if (isNextPlayerOpposingPartner) {
-      // Skip to the next player
-      console.log('Skipping player', nextPlayerId, 'in going alone scenario');
-      euchreState.currentPlayer = nextPlayerId;
+    if (isPartner) {
+      // Skip to the next player (partner sits out when someone goes alone)
+      console.log('Skipping partner', nextPlayerId, 'in going alone scenario');
+      
+      // Calculate the next player after the partner (clockwise)
+      let skipToSeatNum;
+      if (nextSeatNum === 1) skipToSeatNum = 4;
+      else if (nextSeatNum === 4) skipToSeatNum = 3;
+      else if (nextSeatNum === 3) skipToSeatNum = 2;
+      else if (nextSeatNum === 2) skipToSeatNum = 1;
+      
+      const skipToPlayerId = room.playerSeats[skipToSeatNum];
+      
+      if (!skipToPlayerId) {
+        console.error('No player found at skip-to seat:', skipToSeatNum);
+        return;
+      }
+      
+      // Set the next player and continue
+      euchreState.currentPlayer = skipToPlayerId;
       processNextPlayer(io, roomId);
       return;
     }
@@ -211,9 +226,34 @@ function processCompletedTrick(io, roomId) {
   broadcastGameState(io, roomId);
   
   // Check if hand is complete (all cards played)
-  const handComplete = Object.values(euchreState.hands).every(hand => 
-    !hand || hand.length === 0
-  );
+  // In going alone, we need to check only active players (not the skipped partner)
+  const handComplete = Object.keys(euchreState.hands).every(playerId => {
+    // Skip the check for the partner of the player going alone
+    if (euchreState.isGoingAlone && euchreState.alonePlayer) {
+      const alonePlayerSeatNum = parseInt(Object.keys(room.playerSeats).find(
+        seatNum => room.playerSeats[seatNum] === euchreState.alonePlayer
+      ));
+      
+      // Find the current player's seat number
+      let playerSeatNum = null;
+      for (const [seatNum, id] of Object.entries(room.playerSeats)) {
+        if (id === playerId) {
+          playerSeatNum = parseInt(seatNum);
+          break;
+        }
+      }
+      
+      // If this is the partner (same team), skip checking their hand
+      if (playerSeatNum && (alonePlayerSeatNum % 2) === (playerSeatNum % 2) && 
+          playerId !== euchreState.alonePlayer) {
+        return true; // Consider this "complete" for the partner
+      }
+    }
+    
+    // Check if the hand is empty
+    const hand = euchreState.hands[playerId];
+    return !hand || hand.length === 0;
+  });
   
   if (handComplete) {
     // Add a delay before scoring to allow players to see the final trick
