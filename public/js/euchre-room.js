@@ -570,23 +570,11 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Rendering game state. Game phase:', gameState.gamePhase);
     console.log('Trump suit:', gameState.trumpSuit);
     
-    // Check if we're in the discard phase and we're the dealer
-    if (gameState.gamePhase === 'discard') {
-      // Find the dealer's seat number
-      const dealerSeatNum = (gameState.dealerPosition % 4) + 1;
-      const dealerId = roomState.playerSeats[dealerSeatNum];
-      
-      // If we're the dealer, show discard selection
-      if (dealerId === myPlayerId) {
-        showDiscardSelection();
-      } else {
-        // Show waiting message
-        gameInfo.style.display = 'block';
-        infoText.textContent = `Waiting for ${roomState.playerNames[dealerId]} to discard...`;
-      }
-    }
     // Clear all turn indicators first
     clearAllTurnIndicators();
+    
+    // Clear position indicators as well to ensure clean state
+    clearPositionIndicators();
     
     // Render hands
     renderHands();
@@ -612,8 +600,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add dealer indicator
     addDealerIndicator();
     
-    // Add lead position indicator if applicable
-    if (gameState.firstPositionId) {
+    // Add lead position indicator if applicable and we're in the playing phase
+    if (gameState.gamePhase === 'playing' && gameState.firstPositionId) {
+      console.log('Setting lead position indicator for player:', gameState.firstPositionId);
       addLeadPositionIndicator(gameState.firstPositionId);
     }
   }

@@ -223,6 +223,9 @@ function processCompletedTrick(io, roomId) {
       euchreState.currentTrick = [];
       euchreState.leadSuit = null; // Reset lead suit
       
+      // This is the key fix - update the firstPositionId to the winner
+      euchreState.firstPositionId = winningPlayer;
+      
       // Broadcast updated state
       broadcastGameState(io, roomId);
       
