@@ -469,9 +469,19 @@ function checkForCPUTurns(io, roomId) {
     // Prevent multiple CPU turns being triggered at once
     const now = Date.now();
     if (!room.cpuLastTurnTime) room.cpuLastTurnTime = {};
-    const lastTurnTime = room.cpuLastTurnTime[currentPlayerId] || 0;
+    if (!room.cpuLastGamePhase) room.cpuLastGamePhase = {};
     
-    if (now - lastTurnTime > 5000) { // Only trigger if it's been more than 5 seconds
+    const lastTurnTime = room.cpuLastTurnTime[currentPlayerId] || 0;
+    const lastGamePhase = room.cpuLastGamePhase[currentPlayerId] || '';
+    const currentGamePhase = euchreState.gamePhase;
+    
+    // Allow turn if it's been more than 5 seconds OR if the game phase has changed
+    if (now - lastTurnTime > 5000 || lastGamePhase !== currentGamePhase) {
+      console.log(`Scheduling CPU turn for ${currentPlayerId} (phase: ${currentGamePhase}, last phase: ${lastGamePhase})`);
+      
+      // Store current game phase
+      room.cpuLastGamePhase[currentPlayerId] = currentGamePhase;
+      
       // Create a function reference for clarity
       const triggerCPUTurn = () => {
         console.log(`Executing scheduled CPU turn for ${currentPlayerId}`);
@@ -486,7 +496,7 @@ function checkForCPUTurns(io, roomId) {
       // Schedule the CPU turn after a brief delay
       setTimeout(triggerCPUTurn, 2000);
     } else {
-      console.log(`Skipping duplicate CPU turn for ${currentPlayerId}, last turn was ${now - lastTurnTime}ms ago`);
+      console.log(`Skipping duplicate CPU turn for ${currentPlayerId}, last turn was ${now - lastTurnTime}ms ago in same phase "${currentGamePhase}"`);
     }
   }
 }
