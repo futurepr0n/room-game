@@ -124,59 +124,59 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Add event listener for Order Up Alone button
-  if (orderUpAloneBtn) {
-    orderUpAloneBtn.addEventListener('click', function() {
-      if (gameState && gameState.turnUpCard) {
-        console.log('Order up alone button clicked with suit:', gameState.turnUpCard.suit);
-        socket.emit('euchreBid', { 
-          action: 'orderUpAlone', 
-          suit: gameState.turnUpCard.suit 
+    if (orderUpAloneBtn) {
+      orderUpAloneBtn.addEventListener('click', function() {
+        if (gameState && gameState.turnUpCard) {
+          console.log('Order up alone button clicked with suit:', gameState.turnUpCard.suit);
+          socket.emit('euchreBid', { 
+            action: 'orderUpAlone', 
+            suit: gameState.turnUpCard.suit 
+          });
+          logEvent(`You ordered up ${gameState.turnUpCard.suit} and are going alone!`);
+        }
+      });
+    }
+    
+    // Update suit selection buttons to track selected suit
+    document.querySelectorAll('.suit-btn').forEach(button => {
+      button.addEventListener('click', function() {
+        // Clear previous selections
+        document.querySelectorAll('.suit-btn').forEach(btn => {
+          btn.classList.remove('selected');
         });
-        logEvent(`You ordered up ${gameState.turnUpCard.suit} and are going alone!`);
-      }
-    });
-  }
-  
-  // Update suit selection buttons to track selected suit
-  document.querySelectorAll('.suit-btn').forEach(button => {
-    button.addEventListener('click', function() {
-      // Clear previous selections
-      document.querySelectorAll('.suit-btn').forEach(btn => {
-        btn.classList.remove('selected');
-      });
-      
-      // Highlight this selection
-      this.classList.add('selected');
-      selectedSuit = this.dataset.suit;
-      
-      // Check if going alone
-      const goAlone = document.getElementById('call-alone-checkbox').checked;
-      
-      // Call suit with the alone option
-      socket.emit('euchreBid', { 
-        action: goAlone ? 'callSuitAlone' : 'callSuit',
-        suit: selectedSuit 
-      });
-      logEvent(`You called ${selectedSuit} as trump${goAlone ? ' and are going alone!' : ''}`);
-    });
-  });
-  
-  // Add event listener for Call Alone button
-  if (callAloneBtn) {
-    callAloneBtn.addEventListener('click', function() {
-      if (selectedSuit) {
-        console.log('Going alone with suit:', selectedSuit);
+        
+        // Highlight this selection
+        this.classList.add('selected');
+        selectedSuit = this.dataset.suit;
+        
+        // Check if going alone
+        const goAlone = document.getElementById('call-alone-checkbox').checked;
+        
+        // Call suit with the alone option
         socket.emit('euchreBid', { 
-          action: 'callSuitAlone', 
+          action: goAlone ? 'callSuitAlone' : 'callSuit',
           suit: selectedSuit 
         });
-        logEvent(`You called ${selectedSuit} as trump and are going alone!`);
-      } else {
-        // Show error if no suit is selected
-        alert('Please select a suit first');
-      }
+        logEvent(`You called ${selectedSuit} as trump${goAlone ? ' and are going alone!' : ''}`);
+      });
     });
-  }
+    
+    // Add event listener for Call Alone button
+    if (callAloneBtn) {
+      callAloneBtn.addEventListener('click', function() {
+        if (selectedSuit) {
+          console.log('Going alone with suit:', selectedSuit);
+          socket.emit('euchreBid', { 
+            action: 'callSuitAlone', 
+            suit: selectedSuit 
+          });
+          logEvent(`You called ${selectedSuit} as trump and are going alone!`);
+        } else {
+          // Show error if no suit is selected
+          alert('Please select a suit first');
+        }
+      });
+    }
     
     document.querySelectorAll('.suit-btn').forEach(button => {
       button.addEventListener('click', function() {
@@ -194,6 +194,14 @@ document.addEventListener('DOMContentLoaded', function() {
       console.log('Pass suit button clicked');
       socket.emit('euchreBid', { action: 'pass' });
       logEvent('You passed');
+    });
+
+    // Add listener for the euchreDiscard event
+    socket.on('euchreDiscard', function(data) {
+      // Handle response from server after discard
+      console.log('Discard successful:', data);
+      // You could update the game log or UI here if needed
+      logEvent('Card discarded successfully');
     });
 
     // Handle room state updates (from your existing system)
@@ -351,6 +359,11 @@ document.addEventListener('DOMContentLoaded', function() {
       
       if (dealerId === myPlayerId) {
         infoText.textContent = 'Select a card to discard';
+        
+        // Add high visibility for discard phase
+        document.querySelectorAll('.card').forEach(card => {
+          card.classList.add('discard-phase');
+        });
       } else {
         infoText.textContent = `Waiting for ${roomState.playerNames[dealerId]} to discard...`;
       }
@@ -446,32 +459,64 @@ document.addEventListener('DOMContentLoaded', function() {
       document.head.appendChild(styleEl);
     }
     // Update the styles
-  styleEl.textContent = `
-  .trump-indicator {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background-color: rgba(0, 0, 0, 0.7);
-    padding: 8px 12px;
-    border-radius: 5px;
-    font-size: 16px;
-    color: white;
-    font-weight: bold;
-    z-index: 100;
+    styleEl.textContent = `
+    .trump-indicator {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background-color: rgba(0, 0, 0, 0.7);
+      padding: 8px 12px;
+      border-radius: 5px;
+      font-size: 16px;
+      color: white;
+      font-weight: bold;
+      z-index: 100;
+    }
+
+    .maker-indicator {
+      font-size: 12px;
+      margin-top: 5px;
+      color: #cccccc;
+    }
+    
+    @keyframes pulse {
+      0% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.7); }
+      50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.9); }
+      100% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.7); }
+    }
+    
+    /* Hide game-info during play but keep it available for welcome and bidding */
+    .game-info {
+      transition: opacity 0.3s ease-in-out;
+    }
+
+    .card.discard-phase {
+      cursor: pointer;
+      transition: transform 0.2s;
+      box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+    }
+
+    .card.discard-phase:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 0 15px rgba(0, 255, 0, 0.8);
+    }
+
+    .discard-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: white;
+    }
+  `;
   }
-  
-  @keyframes pulse {
-    0% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.7); }
-    50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.9); }
-    100% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.7); }
-  }
-  
-  /* Hide game-info during play but keep it available for welcome and bidding */
-  .game-info {
-    transition: opacity 0.3s ease-in-out;
-  }
-`;
-}
 
 
 
@@ -590,6 +635,30 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Make sure to update the trump indicator
     updateTrumpIndicator();
+    
+    // Add maker indicator if applicable
+    if (gameState.trumpSuit && gameState.maker && roomState.playerNames[gameState.maker]) {
+      const trumpIndicator = document.getElementById('trump-indicator');
+      if (trumpIndicator) {
+        const makerIndicator = document.createElement('div');
+        makerIndicator.id = 'maker-indicator';
+        makerIndicator.className = 'maker-indicator';
+        makerIndicator.textContent = `Called by: ${roomState.playerNames[gameState.maker]}`;
+        
+        // Add going alone indicator if applicable
+        if (gameState.isGoingAlone) {
+          makerIndicator.textContent += ' (GOING ALONE)';
+          makerIndicator.style.fontWeight = 'bold';
+          makerIndicator.style.color = '#ff9900';
+        }
+        
+        // Remove any existing maker indicator first
+        const existingMaker = document.getElementById('maker-indicator');
+        if (existingMaker) existingMaker.remove();
+        
+        trumpIndicator.appendChild(makerIndicator);
+      }
+    }
     
     // Add appropriate indicators
     if (gameState.gamePhase === 'playing') {
@@ -944,11 +1013,17 @@ function addLeadPositionIndicator(leadPlayerId) {
           symbolEl.textContent = suitSymbols[card.suit];
           cardEl.appendChild(symbolEl);
           
-          // Add click event for playing cards
-          if (gameState.gamePhase === 'playing' && gameState.currentPlayer === myPlayerId) {
+          // Add click event for playing cards or discarding
+          if ((gameState.gamePhase === 'playing' && gameState.currentPlayer === myPlayerId) || 
+              (gameState.gamePhase === 'discard' && gameState.currentPlayer === myPlayerId)) {
             cardEl.addEventListener('click', () => {
-              socket.emit('euchrePlayCard', index);
-              console.log(`Playing card at index ${index}:`, card);
+              if (gameState.gamePhase === 'playing') {
+                socket.emit('euchrePlayCard', index);
+                console.log(`Playing card at index ${index}:`, card);
+              } else if (gameState.gamePhase === 'discard') {
+                socket.emit('euchreDiscard', index);
+                console.log(`Discarding card at index ${index}:`, card);
+              }
             });
             cardEl.classList.add('playable');
           }

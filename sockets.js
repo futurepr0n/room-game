@@ -235,6 +235,14 @@ function setupSocket(io) {
       // Update active rooms after game state changes
       io.emit('updateActiveRooms', getActiveRooms());
     });
+    // In your socket.on connection handler in sockets.js
+    socket.on('euchreDiscard', function(cardIndex) {
+      console.log('Received discard request for card index:', cardIndex);
+      
+      // Call the existing euchreLogic handler function
+      const { handleEuchreDiscard } = require('./euchreLogic');
+      handleEuchreDiscard(io, socket, cardIndex);
+    });
     
     socket.on('euchrePlayCard', (cardIndex) => {
       console.log('Received euchre card play from', socket.id, 'card index:', cardIndex);
