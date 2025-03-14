@@ -110,55 +110,37 @@ function handleEuchreBid(io, socket, bid) {
         const dealerSeatNum = (dealerPosition % 4) + 1; // Convert 0-3 to 1-4
         const dealerId = room.playerSeats[dealerSeatNum];
 
-        //euchreState.gamePhase = 'discard';
-        //euchreState.currentPlayer = dealerId; // Set dealer as current player for discard
-        
-        // Add the turn-up card to dealer's hand
-        if (euchreState.hands[dealerId]) {
-          console.log('Adding turn-up card to dealer hand');
-          euchreState.hands[dealerId].push(euchreState.turnUpCard);
-          const discardedCard = euchreState.hands[dealerId].shift();
-          console.log('Dealer discarded:', discardedCard);
-        }
-        
-        // Move to playing phase
-        euchreState.gamePhase = 'playing';
-        
-        // Player to left of dealer leads - clockwise
-        // Determine the correct lead seat in clockwise rotation
-        let leadSeatNum;
-        if (dealerSeatNum === 1) leadSeatNum = 4;
-        else if (dealerSeatNum === 2) leadSeatNum = 1;
-        else if (dealerSeatNum === 3) leadSeatNum = 2;
-        else if (dealerSeatNum === 4) leadSeatNum = 3;
-        else leadSeatNum = 4; // Fallback
-        
-        console.log('Dealer seat:', dealerSeatNum);
-        console.log('Lead seat:', leadSeatNum);
-        
-        const leadPlayerId = room.playerSeats[leadSeatNum];
-        
-        if (leadPlayerId) {
-          euchreState.currentPlayer = leadPlayerId;
-          euchreState.firstPositionId = leadPlayerId; // Set first position
-          console.log('Current player now set to:', leadPlayerId);
-        }
-        
         // Add game log entry with alone info if applicable
         if (euchreState.isGoingAlone) {
           addToGameLog(euchreState, `${playerName} ordered up ${euchreState.trumpSuit} and is going ALONE!`);
         } else {
           addToGameLog(euchreState, `${playerName} ordered up ${euchreState.trumpSuit}`);
         }
+        
+        // Change game phase to discard
+        euchreState.gamePhase = 'discard';
+        euchreState.currentPlayer = dealerId; // Set dealer as current player for discard
+        
+        // If dealer is CPU, schedule automatic discard
         if (dealerId.startsWith('cpu_')) {
           console.log(`CPU dealer ${dealerId} needs to discard`);
+          
+          // Add turn-up card to CPU dealer's hand
+          if (euchreState.hands[dealerId]) {
+            euchreState.hands[dealerId].push(euchreState.turnUpCard);
+          }
           
           // Schedule CPU discard
           setTimeout(() => {
             handleCPUDiscard(io, roomId, dealerId);
           }, 2000);
+        } else {
+          // Human dealer - add turn-up card to hand so they can see it while choosing
+          if (euchreState.hands[dealerId]) {
+            euchreState.hands[dealerId].push(euchreState.turnUpCard);
+          }
+          addToGameLog(euchreState, `Dealer ${room.playerNames[dealerId]} needs to discard a card`);
         }
-
       } 
       else if (bid.action === 'pass') {
         // Player passes - increment count
@@ -246,7 +228,33 @@ function handleEuchreBid(io, socket, bid) {
         else if (dealerSeatNum === 4) leadSeatNum = 3;
         else leadSeatNum = 4; // Fallback
         
-        const leadPlayerId = room.playerSeats[leadSeatNum];
+        let leadPlayerId = room.playerSeats[leadSeatNum];
+        
+        // Check if lead player should be skipped when going alone
+        if (euchreState.isGoingAlone && euchreState.alonePlayer) {
+          const alonePlayerSeatNum = parseInt(Object.keys(room.playerSeats).find(
+              seatNum => room.playerSeats[seatNum] === euchreState.alonePlayer
+          ));
+          
+          if (alonePlayerSeatNum) {
+            // Check if lead player is partner of alone player (same parity seats are partners)
+            const isPartner = (alonePlayerSeatNum % 2) === (leadSeatNum % 2) &&
+                            leadPlayerId !== euchreState.alonePlayer;
+            
+            if (isPartner) {
+              console.log('Skipping partner as lead in going alone scenario');
+              
+              // Move to the next player clockwise
+              let skipToSeatNum;
+              if (leadSeatNum === 1) skipToSeatNum = 4;
+              else if (leadSeatNum === 4) skipToSeatNum = 3;
+              else if (leadSeatNum === 3) skipToSeatNum = 2;
+              else if (leadSeatNum === 2) skipToSeatNum = 1;
+              
+              leadPlayerId = room.playerSeats[skipToSeatNum];
+            }
+          }
+        }
         
         if (leadPlayerId) {
           euchreState.currentPlayer = leadPlayerId;
@@ -359,22 +367,35 @@ function handleCPUDiscard(io, roomId, cpuId) {
   const euchreState = room.euchre;
   if (!euchreState || euchreState.gamePhase !== 'discard') return;
   
-  // Simple strategy: discard lowest card (not accounting for strategy)
+  // Get the CPU's hand and add turn-up card if not already added
   const hand = euchreState.hands[cpuId];
-  if (!hand || hand.length === 0) {
-    console.error('CPU hand is empty, cannot discard');
-    return;
+  if (!hand) {
+      console.error('CPU has no hand');
+      return;
   }
   
-  // Find lowest card
+  // Add turn-up card to hand if not already there
+  let turnUpCardAdded = false;
+  for (const card of hand) {
+      if (card === euchreState.turnUpCard) {
+          turnUpCardAdded = true;
+          break;
+      }
+  }
+  
+  if (!turnUpCardAdded) {
+      hand.push(euchreState.turnUpCard);
+  }
+  
+  // Find lowest card (not considering strategy)
   const lowestCardIndex = findLowestCard(hand, euchreState.trumpSuit);
   
   console.log(`CPU ${cpuId} discarding card at index ${lowestCardIndex}`);
   
   // Create mock socket for compatibility
   const mockSocket = {
-    id: cpuId,
-    roomId: roomId
+      id: cpuId,
+      roomId: roomId
   };
   
   // Call the regular discard handler
@@ -386,14 +407,14 @@ function handleEuchreDiscard(io, socket, cardIndex) {
   const room = roomStates[roomId];
   
   if (!room || !room.gameActive || room.gameType !== 'euchre') {
-    console.error('Invalid room state for discard');
-    return;
+      console.error('Invalid room state for discard');
+      return;
   }
   
   const euchreState = room.euchre;
   if (!euchreState || euchreState.gamePhase !== 'discard') {
-    console.error('Not in discard phase');
-    return;
+      console.error('Not in discard phase');
+      return;
   }
   
   // Check if this player is the dealer
@@ -401,32 +422,31 @@ function handleEuchreDiscard(io, socket, cardIndex) {
   const dealerId = room.playerSeats[dealerSeatNum];
   
   if (socket.id !== dealerId) {
-    console.error('Only the dealer can discard');
-    return;
+      console.error('Only the dealer can discard');
+      return;
   }
   
   // Make sure card index is valid
   const hand = euchreState.hands[socket.id];
   if (!hand || cardIndex < 0 || cardIndex >= hand.length) {
-    console.error('Invalid card index for discard');
-    return;
+      console.error('Invalid card index for discard');
+      return;
   }
   
   console.log(`Dealer discarding card at index ${cardIndex}`);
   
-  // Remove the card at the specified index
+  // For human dealers, the turn-up card is already in their hand,
+  // so they just need to discard one card
   const discardedCard = hand.splice(cardIndex, 1)[0];
   console.log('Discarded card:', discardedCard);
   
-  // Add the turn-up card to the dealer's hand
-  hand.push(euchreState.turnUpCard);
-  console.log('Added turn-up card:', euchreState.turnUpCard);
-  
   // Add to game log
-  addToGameLog(euchreState, `${room.playerNames[socket.id]} discarded a card and took the ${euchreState.turnUpCard.rank} of ${euchreState.turnUpCard.suit}`);
+  addToGameLog(euchreState, `${room.playerNames[socket.id]} discarded a card`);
   
-  // Move to playing phase
+  // Now move to playing phase
   euchreState.gamePhase = 'playing';
+  
+  // The rest of the function remains the same...
   
   // Determine lead player (left of dealer)
   let leadSeatNum;
@@ -434,15 +454,39 @@ function handleEuchreDiscard(io, socket, cardIndex) {
   else if (dealerSeatNum === 2) leadSeatNum = 1;
   else if (dealerSeatNum === 3) leadSeatNum = 2;
   else if (dealerSeatNum === 4) leadSeatNum = 3;
-  else leadSeatNum = 4; // Fallback
+  else leadSeatNum = 4;
   
   const leadPlayerId = room.playerSeats[leadSeatNum];
+  
+  if (euchreState.isGoingAlone && euchreState.alonePlayer) {
+    const alonePlayerSeatNum = parseInt(Object.keys(room.playerSeats).find(
+        seatNum => room.playerSeats[seatNum] === euchreState.alonePlayer
+    ));
+  
+    if (alonePlayerSeatNum) {
+      // Check if lead player is partner of alone player
+      const isPartner = (alonePlayerSeatNum % 2) === (leadSeatNum % 2) &&
+                        leadPlayerId !== euchreState.alonePlayer;
+      
+      if (isPartner) {
+          // Skip partner - find next player clockwise
+          let skipToSeatNum;
+          if (leadSeatNum === 1) skipToSeatNum = 4;
+          else if (leadSeatNum === 4) skipToSeatNum = 3;
+          else if (leadSeatNum === 3) skipToSeatNum = 2;
+          else if (leadSeatNum === 2) skipToSeatNum = 1;
+          
+          leadPlayerId = room.playerSeats[skipToSeatNum];
+      }
+    }
+  }
   
   if (leadPlayerId) {
     euchreState.currentPlayer = leadPlayerId;
     euchreState.firstPositionId = leadPlayerId;
     console.log('Lead player is now:', leadPlayerId);
   }
+
   
   // Reset for a clean trick
   euchreState.currentTrick = [];

@@ -142,37 +142,42 @@ function processNextPlayer(io, roomId) {
   // Skip player if they're "going alone" and they are the partner of the player going alone
   if (euchreState.isGoingAlone && euchreState.alonePlayer) {
     const alonePlayerSeatNum = parseInt(Object.keys(room.playerSeats).find(
-      seatNum => room.playerSeats[seatNum] === euchreState.alonePlayer
+        seatNum => room.playerSeats[seatNum] === euchreState.alonePlayer
     ));
     
-    // In Euchre, partners are in seats 1&3 (team 1) and 2&4 (team 2)
-    // Skip the partner of the player going alone
-    const isPartner = (alonePlayerSeatNum % 2) === (nextSeatNum % 2);
-    
-    if (isPartner) {
-      // Skip to the next player (partner sits out when someone goes alone)
-      console.log('Skipping partner', nextPlayerId, 'in going alone scenario');
-      
-      // Calculate the next player after the partner (clockwise)
-      let skipToSeatNum;
-      if (nextSeatNum === 1) skipToSeatNum = 4;
-      else if (nextSeatNum === 4) skipToSeatNum = 3;
-      else if (nextSeatNum === 3) skipToSeatNum = 2;
-      else if (nextSeatNum === 2) skipToSeatNum = 1;
-      
-      const skipToPlayerId = room.playerSeats[skipToSeatNum];
-      
-      if (!skipToPlayerId) {
-        console.error('No player found at skip-to seat:', skipToSeatNum);
-        return;
-      }
-      
-      // Set the next player and continue
-      euchreState.currentPlayer = skipToPlayerId;
-      processNextPlayer(io, roomId);
-      return;
+    if (!alonePlayerSeatNum) {
+        console.error('Could not find alone player seat number');
+    } else {
+        // In Euchre, partners are in seats 1&3 (team 1) and 2&4 (team 2)
+        // Check if nextPlayerId is the partner by comparing seat number parity
+        const isPartner = (alonePlayerSeatNum % 2) === (nextSeatNum % 2) &&
+                          nextPlayerId !== euchreState.alonePlayer;
+        
+        if (isPartner) {
+            // Skip to the next player (partner sits out when someone goes alone)
+            console.log('Skipping partner', nextPlayerId, 'in going alone scenario');
+            
+            // Calculate the next player after the partner (clockwise)
+            let skipToSeatNum;
+            if (nextSeatNum === 1) skipToSeatNum = 4;
+            else if (nextSeatNum === 4) skipToSeatNum = 3;
+            else if (nextSeatNum === 3) skipToSeatNum = 2;
+            else if (nextSeatNum === 2) skipToSeatNum = 1;
+            
+            const skipToPlayerId = room.playerSeats[skipToSeatNum];
+            
+            if (!skipToPlayerId) {
+                console.error('No player found at skip-to seat:', skipToSeatNum);
+                return;
+            }
+            
+            // Set the next player and continue
+            euchreState.currentPlayer = skipToPlayerId;
+            processNextPlayer(io, roomId);
+            return;
+        }
     }
-  }
+}
   
   // Set new current player
   euchreState.currentPlayer = nextPlayerId;
