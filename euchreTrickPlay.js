@@ -32,16 +32,36 @@ function handlePlayCard(io, socket, cardIndex) {
       return;
     }
     
+    // Check if there's already a turn in progress for this player
+    if (room.playerTurnInProgress && room.playerTurnInProgress[playerId]) {
+      console.log(`Rejecting card play - turn already in progress for player ${playerId}`);
+      socket.emit('cardError', { message: 'Your card is already being processed' });
+      return;
+    }
+    
+    // Initialize turn tracking if not exists
+    if (!room.playerTurnInProgress) {
+      room.playerTurnInProgress = {};
+    }
+    
+    // Set turn in progress flag for this player
+    room.playerTurnInProgress[playerId] = true;
+    
     // Get player's hand
     const hand = euchreState.hands[playerId];
     if (!hand || hand.length === 0) {
       console.error(`Player ${playerId} has no cards to play`);
+      // Clear the flag since the play failed
+      room.playerTurnInProgress[playerId] = false;
       return;
     }
     
     // Make sure card index is valid
     if (cardIndex < 0 || cardIndex >= hand.length) {
       console.error(`Invalid card index: ${cardIndex}`);
+      // Clear the flag since the play failed
+      room.playerTurnInProgress[playerId] = false;
+      socket.emit('cardError', { message: 'Invalid card selection' });
       return;
     }
     
@@ -60,6 +80,8 @@ function handlePlayCard(io, socket, cardIndex) {
       if (hasSuit && cardSuit !== leadSuit) {
         console.error(`Player must follow suit ${leadSuit}`);
         socket.emit('cardError', { message: `You must follow ${leadSuit} if possible` });
+        // Clear the flag since the play failed
+        room.playerTurnInProgress[playerId] = false;
         return; // Cannot play this card, must follow suit if possible
       }
     }
@@ -86,8 +108,15 @@ function handlePlayCard(io, socket, cardIndex) {
     
     // Process next player in trick
     processNextPlayer(io, roomId);
+    
+    // Note: The turn in progress flag will be cleared in processNextPlayer
   } catch (error) {
     console.error('Error in handlePlayCard:', error);
+    // Make sure to clear the flag in case of errors
+    const room = roomStates[socket.roomId];
+    if (room && room.playerTurnInProgress) {
+      room.playerTurnInProgress[socket.id] = false;
+    }
   }
 }
 
@@ -98,6 +127,11 @@ function processNextPlayer(io, roomId) {
   
   const euchreState = room.euchre;
   if (!euchreState) return;
+  
+  // Clear the turn in progress flag for the current player
+  if (room.playerTurnInProgress && euchreState.currentPlayer) {
+    room.playerTurnInProgress[euchreState.currentPlayer] = false;
+  }
   
   // Check if trick is complete
   // In a going alone scenario, we only need 3 cards instead of 4
@@ -200,14 +234,19 @@ function processNextPlayer(io, roomId) {
 
 
 // Process a completed trick
-// In euchreTrickPlay.js, update the processCompletedTrick function to prevent double CPU play:
-
 function processCompletedTrick(io, roomId) {
   const room = roomStates[roomId];
   if (!room) return;
   
   const euchreState = room.euchre;
   if (!euchreState) return;
+  
+  // Clear all player turn in progress flags
+  if (room.playerTurnInProgress) {
+    for (const playerId in room.playerTurnInProgress) {
+      room.playerTurnInProgress[playerId] = false;
+    }
+  }
   
   // Determine the winning play
   const winningPlay = getCurrentWinningPlay(euchreState);
