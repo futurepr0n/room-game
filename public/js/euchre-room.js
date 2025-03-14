@@ -473,12 +473,14 @@ document.addEventListener('DOMContentLoaded', function() {
       z-index: 100;
     }
 
-    .maker-indicator {
-      font-size: 12px;
-      margin-top: 5px;
-      color: #cccccc;
-    }
     
+  .maker-indicator {
+    font-size: 14px;
+    margin-top: 5px;
+    color: #ffff00;
+    font-weight: bold;
+  }
+      
     @keyframes pulse {
       0% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.7); }
       50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.9); }

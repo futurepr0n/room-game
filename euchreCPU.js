@@ -128,7 +128,7 @@ function decideCPUBid(io, roomId, cpuId) {
       // - Right bower
       // - Left bower and another trump
       // - Ace of trump and another trump
-      if (trumpCount >= 3 || hasRightBower || (hasLeftBower && trumpCount >= 2) || (hasAce && trumpCount >= 2)) {
+      if (trumpCount >= 3 || (hasRightBower && trumpCount >= 2) || (hasLeftBower && trumpCount >= 2) || (hasAce && trumpCount >= 3)) {
         // Consider going alone with a very strong hand
         const goAlone = hasRightBower && hasLeftBower && trumpCount >= 4;
         

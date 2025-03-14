@@ -456,7 +456,7 @@ function handleEuchreDiscard(io, socket, cardIndex) {
   else if (dealerSeatNum === 4) leadSeatNum = 3;
   else leadSeatNum = 4;
   
-  const leadPlayerId = room.playerSeats[leadSeatNum];
+  let leadPlayerId = room.playerSeats[leadSeatNum];
   
   if (euchreState.isGoingAlone && euchreState.alonePlayer) {
     const alonePlayerSeatNum = parseInt(Object.keys(room.playerSeats).find(
