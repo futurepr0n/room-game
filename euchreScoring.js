@@ -178,9 +178,14 @@ function prepareNextHand(io, roomId, euchreState, room) {
   shuffleDeck(euchreState);
   dealCards(euchreState, room);
   
-  // Set first bidder (player to left of dealer)
   const dealerSeat = (euchreState.dealerPosition % 4) + 1;
-  const firstSeat = dealerSeat < 4 ? dealerSeat + 1 : 1;
+  // Calculate first bidder seat in clockwise rotation
+  let firstSeat;
+  if (dealerSeat === 1) firstSeat = 4;
+  else if (dealerSeat === 2) firstSeat = 1;
+  else if (dealerSeat === 3) firstSeat = 2;
+  else if (dealerSeat === 4) firstSeat = 3;
+  else firstSeat = 4; // Fallback
   const firstPlayerId = room.playerSeats[firstSeat];
   
   if (firstPlayerId) {
